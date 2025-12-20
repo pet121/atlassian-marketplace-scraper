@@ -74,6 +74,104 @@ AtlassianMarketplaceScraper/
    mkdir -p data/metadata/versions data/metadata/checkpoints data/binaries logs
    ```
 
+## Docker Deployment
+
+### Prerequisites
+
+- Docker 20.10+
+- Docker Compose 2.0+
+
+### Quick Start
+
+1. **Configure environment:**
+   ```bash
+   cp .env.example .env
+   # Edit .env with your credentials (optional for public data)
+   ```
+
+2. **Build and start the web interface:**
+   ```bash
+   docker-compose up -d web
+   ```
+
+   Access at http://localhost:5000
+
+### Running Scraper Scripts
+
+The scraper scripts use Docker profiles to avoid auto-starting:
+
+```bash
+# Step 1: Scrape apps
+docker-compose run --rm scraper
+
+# Step 2: Scrape versions
+docker-compose run --rm version-scraper
+
+# Step 3: Download binaries (all products)
+docker-compose run --rm downloader
+
+# Download specific product
+docker-compose run --rm downloader python run_downloader.py jira
+```
+
+### Data Persistence
+
+Data and logs are automatically persisted via Docker volumes:
+- `./data/metadata` - Apps and versions metadata
+- `./data/binaries` - Downloaded JAR/OBR files (or custom path via `BINARIES_PATH`)
+- `./logs` - Application logs
+
+### Using External Drive for Binaries
+
+Binaries can be stored on a separate drive or shared storage (useful for large datasets):
+
+1. **Set the path in .env:**
+   ```bash
+   # For local external drive
+   BINARIES_PATH=/mnt/external-drive/atlassian-binaries
+
+   # For network share
+   BINARIES_PATH=/mnt/nas/atlassian-binaries
+   ```
+
+2. **Ensure the directory exists and has proper permissions:**
+   ```bash
+   mkdir -p /mnt/external-drive/atlassian-binaries
+   chmod 755 /mnt/external-drive/atlassian-binaries
+   ```
+
+3. **Start services normally:**
+   ```bash
+   docker-compose up -d web
+   ```
+
+The binaries will be downloaded to your specified path while metadata stays in `./data/metadata`.
+
+### Docker Commands
+
+```bash
+# View logs
+docker-compose logs -f web
+
+# Stop services
+docker-compose down
+
+# Rebuild after code changes
+docker-compose build
+
+# Remove all data (destructive)
+docker-compose down -v
+```
+
+### Docker Architecture
+
+- **web**: Flask application on port 5000 (always running)
+- **scraper**: App scraping service (on-demand via `run`)
+- **version-scraper**: Version scraping service (on-demand via `run`)
+- **downloader**: Binary download service (on-demand via `run`)
+
+All services share the same network and volumes for data consistency.
+
 ## Usage
 
 ### Step 1: Scrape Apps
@@ -153,6 +251,9 @@ VERSION_AGE_LIMIT_DAYS=365         # Version date filter (days)
 MAX_CONCURRENT_DOWNLOADS=3         # Parallel downloads
 MAX_RETRY_ATTEMPTS=3               # Retry failed requests
 MAX_VERSION_SCRAPER_WORKERS=10     # Parallel version scraper workers
+
+# Storage Settings
+# BINARIES_PATH=/path/to/storage  # Custom path for binaries (default: ./data/binaries)
 
 # Flask Settings
 FLASK_PORT=5000

@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  # Main web application
+  web:
+    build: .
+    container_name: atlassian-scraper-web
+    ports:
+      - "5000:5000"
+    volumes:
+      # Persist metadata and logs
+      - ./data/metadata:/app/data/metadata
+      - ./logs:/app/logs
+      # Binaries storage (configure via BINARIES_PATH in .env for external drive)
+      - ${BINARIES_PATH:-./data/binaries}:/app/data/binaries
+    env_file:
+      - .env
+    restart: unless-stopped
+    networks:
+      - scraper-network
+
+  # App scraper (run once or on-demand)
+  scraper:
+    build: .
+    container_name: atlassian-scraper-apps
+    command: python run_scraper.py
+    volumes:
+      - ./data/metadata:/app/data/metadata
+      - ./logs:/app/logs
+      - ${BINARIES_PATH:-./data/binaries}:/app/data/binaries
+    env_file:
+      - .env
+    networks:
+      - scraper-network
+    profiles:
+      - scraping
+
+  # Version scraper (run after app scraper)
+  version-scraper:
+    build: .
+    container_name: atlassian-scraper-versions
+    command: python run_version_scraper.py
+    volumes:
+      - ./data/metadata:/app/data/metadata
+      - ./logs:/app/logs
+      - ${BINARIES_PATH:-./data/binaries}:/app/data/binaries
+    env_file:
+      - .env
+    networks:
+      - scraper-network
+    profiles:
+      - scraping
+
+  # Binary downloader (run after version scraper)
+  downloader:
+    build: .
+    container_name: atlassian-scraper-downloader
+    command: python run_downloader.py
+    volumes:
+      - ./data/metadata:/app/data/metadata
+      - ./logs:/app/logs
+      - ${BINARIES_PATH:-./data/binaries}:/app/data/binaries
+    env_file:
+      - .env
+    networks:
+      - scraper-network
+    profiles:
+      - scraping
+
+networks:
+  scraper-network:
+    driver: bridge
+
+volumes:
+  data:
+  logs:

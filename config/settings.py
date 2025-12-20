@@ -7,8 +7,10 @@ from decouple import config
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, 'data')
 METADATA_DIR = os.path.join(DATA_DIR, 'metadata')
-BINARIES_DIR = os.path.join(DATA_DIR, 'binaries')
 LOGS_DIR = os.path.join(BASE_DIR, 'logs')
+
+# Binaries directory (configurable for separate storage/drive)
+BINARIES_DIR = config('BINARIES_PATH', default=os.path.join(DATA_DIR, 'binaries'))
 
 # Marketplace API Credentials
 MARKETPLACE_USERNAME = config('MARKETPLACE_USERNAME', default='')
