@@ -25,28 +25,22 @@ def register_routes(app):
     def index():
         """Dashboard homepage."""
         try:
-            # Get statistics
+            # Get statistics (fast database queries only, no file scanning)
             total_apps = store.get_apps_count()
             total_versions = store.get_total_versions_count()
             downloaded_versions = store.get_downloaded_versions_count()
-            storage_stats = download_mgr.get_storage_stats()
             
-            # Get detailed storage stats only if requested (lazy loading)
-            # This avoids slow page loads - detailed stats will be loaded via AJAX
-            include_detailed = request.args.get('detailed', 'false').lower() == 'true'
-            detailed_stats = None
-            if include_detailed:
-                detailed_stats = download_mgr.get_detailed_storage_stats()
+            # Storage stats will be loaded via AJAX to avoid blocking page load
+            # This allows the page to render immediately while stats load in background
 
             stats = {
                 'total_apps': total_apps,
                 'total_versions': total_versions,
                 'downloaded_versions': downloaded_versions,
                 'pending_downloads': total_versions - downloaded_versions,
-                'storage_used_gb': storage_stats.get('total_gb', 0),
-                'storage_used_mb': storage_stats.get('total_mb', 0),
-                'file_count': storage_stats.get('file_count', 0),
-                'detailed_storage': detailed_stats
+                'storage_used_gb': 0,  # Will be loaded via AJAX
+                'storage_used_mb': 0,   # Will be loaded via AJAX
+                'file_count': 0          # Will be loaded via AJAX
             }
 
             return render_template('index.html', stats=stats, products=PRODUCTS)
@@ -135,8 +129,9 @@ def register_routes(app):
                     if file.endswith('.html') and file != 'index.html':
                         description_files.append(file)
                 
-                # Try to load overview from latest JSON description
+                # Try to load overview and documentation URL from latest JSON description
                 json_files = [f for f in os.listdir(description_dir) if f.endswith('.json')]
+                documentation_url = None
                 if json_files:
                     # Get latest JSON file
                     latest_json = sorted(json_files)[-1]
@@ -157,6 +152,9 @@ def register_routes(app):
                                 )
                             elif isinstance(overview, str):
                                 api_overview = overview
+                            
+                            # Extract documentation URL
+                            documentation_url = desc_data.get('documentation_url') or desc_data.get('addon', {}).get('vendorLinks', {}).get('Documentation')
                     except Exception as e:
                         logger.debug(f"Could not load overview from JSON: {str(e)}")
 
@@ -167,7 +165,8 @@ def register_routes(app):
                 description_files=description_files,
                 description_dir=description_dir,
                 full_page_path=full_page_path,
-                api_overview=api_overview
+                api_overview=api_overview,
+                documentation_url=documentation_url
             )
 
         except Exception as e:
@@ -423,6 +422,13 @@ def register_routes(app):
     @app.route('/descriptions')
     def descriptions_list():
         """List all apps with descriptions."""
+        # Descriptions list will be loaded via AJAX to avoid blocking page load
+        # This allows the page to render immediately while descriptions are scanned in background
+        return render_template('descriptions_list.html', apps=None)
+
+    @app.route('/api/descriptions')
+    def api_descriptions_list():
+        """Get list of apps with descriptions as JSON (for lazy loading)."""
         try:
             descriptions_dir = settings.DESCRIPTIONS_DIR
             apps_with_descriptions = []
@@ -488,14 +494,14 @@ def register_routes(app):
                                     'documentation_url': documentation_url
                                 })
 
-            return render_template(
-                'descriptions_list.html',
-                apps=apps_with_descriptions
-            )
+            return jsonify({
+                'success': True,
+                'apps': apps_with_descriptions
+            })
 
         except Exception as e:
             logger.error(f"Error loading descriptions list: {str(e)}")
-            return render_template('error.html', error=str(e)), 500
+            return jsonify({'success': False, 'error': str(e)}), 500
 
     @app.route('/download/<product>/<addon_key>/<version_id>')
     def download_binary(product, addon_key, version_id):
@@ -592,12 +598,9 @@ def register_routes(app):
     @app.route('/storage')
     def storage_details():
         """Storage details page with breakdown by categories and folders."""
-        try:
-            detailed_stats = download_mgr.get_detailed_storage_stats()
-            return render_template('storage_details.html', stats=detailed_stats)
-        except Exception as e:
-            logger.error(f"Error loading storage details: {str(e)}")
-            return render_template('error.html', error=str(e)), 500
+        # Stats will be loaded via AJAX to avoid blocking page load
+        # This allows the page to render immediately while stats load in background
+        return render_template('storage_details.html', stats=None)
 
     @app.route('/api/stats')
     def api_stats():
@@ -912,11 +915,22 @@ def register_routes(app):
             task_mgr = get_task_manager()
             log_file = task_mgr.get_task_log_file(task_id)
             
-            if not log_file or not os.path.exists(log_file):
+            if not log_file:
+                logger.warning(f"[api_task_last_log] Task {task_id}: No log file path found (script may not be mapped)")
                 return jsonify({
                     'success': True,
                     'log_line': None,
-                    'timestamp': None
+                    'timestamp': None,
+                    'debug': 'No log file path found'
+                })
+            
+            if not os.path.exists(log_file):
+                logger.warning(f"[api_task_last_log] Task {task_id}: Log file does not exist: {log_file}")
+                return jsonify({
+                    'success': True,
+                    'log_line': None,
+                    'timestamp': None,
+                    'debug': f'Log file does not exist: {log_file}'
                 })
             
             # Read last line from log file (optimized for large files)
@@ -928,10 +942,12 @@ def register_routes(app):
                     file_size = f.tell()
                     
                     if file_size == 0:
+                        logger.warning(f"[api_task_last_log] Task {task_id}: Log file is empty: {log_file}")
                         return jsonify({
                             'success': True,
                             'log_line': None,
-                            'timestamp': None
+                            'timestamp': None,
+                            'debug': 'Log file is empty'
                         })
                     
                     # Read last 8KB (or entire file if smaller)
@@ -941,8 +957,10 @@ def register_routes(app):
                     
                     # Find last line
                     lines = chunk.splitlines()
+                    logger.debug(f"[api_task_last_log] Task {task_id}: Log file size: {file_size} bytes, lines found: {len(lines)}")
                     if lines:
                         last_line = lines[-1].strip()
+                        logger.debug(f"[api_task_last_log] Task {task_id}: Found last line, length: {len(last_line)}")
                         # Try to extract timestamp from log line
                         timestamp = None
                         if last_line:
@@ -958,21 +976,23 @@ def register_routes(app):
                             'timestamp': timestamp
                         })
                     else:
+                        logger.warning(f"[api_task_last_log] Task {task_id}: No lines found in log file chunk")
                         return jsonify({
                             'success': True,
                             'log_line': None,
-                            'timestamp': None
+                            'timestamp': None,
+                            'debug': 'No lines found in log file'
                         })
             except Exception as e:
-                logger.error(f"Error reading log file {log_file}: {str(e)}")
+                logger.error(f"[api_task_last_log] Task {task_id}: Error reading log file {log_file}: {str(e)}", exc_info=True)
                 return jsonify({
-                    'success': True,
-                    'log_line': None,
-                    'timestamp': None
-                })
+                    'success': False,
+                    'error': f'Error reading log file: {str(e)}',
+                    'log_file': log_file
+                }), 500
                 
         except Exception as e:
-            logger.error(f"Error getting task log: {str(e)}")
+            logger.error(f"[api_task_last_log] Task {task_id}: Error getting task log: {str(e)}", exc_info=True)
             return jsonify({'success': False, 'error': str(e)}), 500
 
     @app.route('/api/settings', methods=['GET'])
@@ -1294,6 +1314,93 @@ def register_routes(app):
                 
         except Exception as e:
             logger.error(f"Error getting log content: {str(e)}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/search')
+    def search():
+        """Search page for plugin descriptions and release notes."""
+        return render_template('search.html')
+
+    @app.route('/api/search')
+    def api_search():
+        """Search API endpoint - searches in descriptions and release notes using Whoosh."""
+        try:
+            import sys
+            from pathlib import Path
+            # Add web directory to path for imports
+            web_dir = Path(__file__).parent
+            if str(web_dir) not in sys.path:
+                sys.path.insert(0, str(web_dir))
+            from search_index_whoosh import WhooshSearchIndex
+            
+            query = request.args.get('q', '').strip()
+            if not query:
+                return jsonify({
+                    'success': True,
+                    'results': [],
+                    'total': 0
+                })
+
+            # Initialize Whoosh search index
+            search_index = WhooshSearchIndex()
+            
+            # Rebuild index if it doesn't exist
+            if search_index.needs_rebuild():
+                logger.info("Whoosh index not found, building...")
+                search_index.build_index(store)
+            
+            # Perform search using Whoosh
+            results = search_index.search(query, store, limit=100)
+            
+            return jsonify({
+                'success': True,
+                'results': results,
+                'total': len(results),
+                'query': query
+            })
+
+        except Exception as e:
+            logger.error(f"Error in search: {str(e)}", exc_info=True)
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/tasks/start/build-index', methods=['POST'])
+    @requires_auth
+    def api_start_build_index():
+        """Start search index building task (admin only)."""
+        try:
+            task_mgr = get_task_manager()
+            task_id = task_mgr.start_build_search_index()
+            
+            return jsonify({
+                'success': True,
+                'task_id': task_id,
+                'message': 'Search index building started'
+            })
+        except Exception as e:
+            logger.error(f"Error starting index build: {str(e)}", exc_info=True)
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/search/rebuild-index', methods=['POST'])
+    @requires_auth
+    def api_rebuild_search_index():
+        """Rebuild the search index synchronously (admin only)."""
+        try:
+            import sys
+            from pathlib import Path
+            web_dir = Path(__file__).parent
+            if str(web_dir) not in sys.path:
+                sys.path.insert(0, str(web_dir))
+            from search_index_whoosh import WhooshSearchIndex
+            
+            search_index = WhooshSearchIndex()
+            search_index.build_index(store)
+            
+            return jsonify({
+                'success': True,
+                'message': 'Search index rebuilt successfully'
+            })
+        except Exception as e:
+            logger.error(f"Error rebuilding search index: {str(e)}", exc_info=True)
             return jsonify({'success': False, 'error': str(e)}), 500
 
     @app.errorhandler(404)
