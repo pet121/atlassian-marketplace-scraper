@@ -2,6 +2,8 @@
 
 A Python-based service to scrape the Atlassian Marketplace for Server/Data Center apps and versions, download binaries, and provide a web interface for browsing the collected data.
 
+The stable release line is maintained in the `stable` branch.
+
 ## Documentation
 
 - **[ARCHITECTURE.md](ARCHITECTURE.md)** - Detailed technical architecture and component documentation (in Russian)
