@@ -10,6 +10,7 @@ from scraper.download_manager import DownloadManager
 from utils.logger import get_logger
 from utils.task_manager import get_task_manager
 from utils.settings_manager import read_env_settings, update_env_setting
+from utils.auth import requires_auth
 
 logger = get_logger('web')
 
@@ -177,6 +178,20 @@ def register_routes(app):
     def app_description_asset(addon_key, asset_path):
         """Serve assets for description pages."""
         try:
+            # Security: Validate addon_key to prevent path traversal
+            if '..' in addon_key or '/' in addon_key or '\\' in addon_key:
+                return render_template('error.html', error="Invalid addon key"), 400
+
+            # Security: Validate asset_path doesn't contain path traversal
+            if '..' in asset_path:
+                logger.warning(f"Path traversal attempt in assets: {asset_path}")
+                return render_template('error.html', error="Invalid path"), 400
+
+            # Only allow safe file extensions for assets
+            allowed_extensions = ('.css', '.js', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.woff', '.woff2', '.ttf', '.eot', '.ico')
+            if not any(asset_path.lower().endswith(ext) for ext in allowed_extensions):
+                return render_template('error.html', error="File type not allowed"), 400
+
             asset_file = os.path.join(
                 settings.DESCRIPTIONS_DIR,
                 addon_key.replace('.', '_'),
@@ -184,7 +199,20 @@ def register_routes(app):
                 'assets',
                 asset_path
             )
-            
+
+            # Security: Verify resolved path is within expected directory
+            base_dir = os.path.realpath(os.path.join(
+                settings.DESCRIPTIONS_DIR,
+                addon_key.replace('.', '_'),
+                'full_page',
+                'assets'
+            ))
+            real_path = os.path.realpath(asset_file)
+
+            if not real_path.startswith(base_dir):
+                logger.warning(f"Path traversal attempt detected in assets: {asset_path} -> {real_path}")
+                return render_template('error.html', error="Access denied"), 403
+
             if os.path.exists(asset_file) and os.path.isfile(asset_file):
                 return send_file(asset_file)
             else:
@@ -197,19 +225,46 @@ def register_routes(app):
     def app_description(addon_key, filename):
         """Show downloaded description page."""
         try:
+            # Security: Validate addon_key to prevent path traversal
+            if '..' in addon_key or '/' in addon_key or '\\' in addon_key:
+                return render_template('error.html', error="Invalid addon key"), 400
+
             # Handle full_page/index.html path
             if filename.startswith('full_page/'):
-                filename = filename.replace('full_page/', '')
+                filename = filename.replace('full_page/', '', 1)
+
+                # Security: Validate filename doesn't contain path separators after removal
+                if '..' in filename or '/' in filename or '\\' in filename:
+                    return render_template('error.html', error="Invalid filename"), 400
+
+                # Only allow safe file extensions
+                allowed_extensions = ('.html', '.css', '.js', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.woff', '.woff2', '.ttf', '.eot')
+                if not any(filename.lower().endswith(ext) for ext in allowed_extensions):
+                    return render_template('error.html', error="File type not allowed"), 400
+
                 description_path = os.path.join(
                     settings.DESCRIPTIONS_DIR,
                     addon_key.replace('.', '_'),
                     'full_page',
                     filename
                 )
+
+                # Security: Verify resolved path is within expected directory
+                base_dir = os.path.realpath(os.path.join(
+                    settings.DESCRIPTIONS_DIR,
+                    addon_key.replace('.', '_'),
+                    'full_page'
+                ))
+                real_path = os.path.realpath(description_path)
+
+                if not real_path.startswith(base_dir):
+                    logger.warning(f"Path traversal attempt detected: {filename} -> {real_path}")
+                    return render_template('error.html', error="Access denied"), 403
             else:
-                # Security: sanitize filename
+                # Security: sanitize filename (remove any path components)
                 filename = os.path.basename(filename)
-                # Allow index.html for full page
+
+                # Allow only .html files
                 if not filename.endswith('.html') and filename != 'index.html':
                     return render_template('error.html', error="Invalid file type"), 400
 
@@ -218,6 +273,17 @@ def register_routes(app):
                     addon_key.replace('.', '_'),
                     filename
                 )
+
+                # Security: Verify resolved path is within expected directory
+                base_dir = os.path.realpath(os.path.join(
+                    settings.DESCRIPTIONS_DIR,
+                    addon_key.replace('.', '_')
+                ))
+                real_path = os.path.realpath(description_path)
+
+                if not real_path.startswith(base_dir):
+                    logger.warning(f"Path traversal attempt detected: {filename} -> {real_path}")
+                    return render_template('error.html', error="Access denied"), 403
                 
                 # Also check full_page directory
                 if not os.path.exists(description_path):
@@ -568,6 +634,7 @@ def register_routes(app):
     # Management Routes
     
     @app.route('/manage')
+    @requires_auth
     def manage():
         """Management page for tasks and settings."""
         try:
@@ -626,6 +693,7 @@ def register_routes(app):
             return render_template('error.html', error=str(e)), 500
 
     @app.route('/api/tasks/start/scrape-apps', methods=['POST'])
+    @requires_auth
     def api_start_scrape_apps():
         """Start app scraping task."""
         try:
@@ -645,6 +713,7 @@ def register_routes(app):
             return jsonify({'success': False, 'error': str(e)}), 500
 
     @app.route('/api/tasks/start/scrape-versions', methods=['POST'])
+    @requires_auth
     def api_start_scrape_versions():
         """Start version scraping task."""
         try:
@@ -661,6 +730,7 @@ def register_routes(app):
             return jsonify({'success': False, 'error': str(e)}), 500
 
     @app.route('/api/tasks/start/download', methods=['POST'])
+    @requires_auth
     def api_start_download():
         """Start binary download task."""
         try:
@@ -680,6 +750,7 @@ def register_routes(app):
             return jsonify({'success': False, 'error': str(e)}), 500
 
     @app.route('/api/tasks/start/download-descriptions', methods=['POST'])
+    @requires_auth
     def api_start_download_descriptions():
         """Start description download task."""
         try:
@@ -700,6 +771,7 @@ def register_routes(app):
             return jsonify({'success': False, 'error': str(e)}), 500
 
     @app.route('/api/tasks/start/pipeline', methods=['POST'])
+    @requires_auth
     def api_start_pipeline():
         """Start full pipeline: scrape apps → versions → binaries → descriptions."""
         try:
@@ -795,6 +867,7 @@ def register_routes(app):
             return jsonify({'success': False, 'error': str(e)}), 500
 
     @app.route('/api/tasks/<task_id>/cancel', methods=['POST'])
+    @requires_auth
     def api_cancel_task(task_id):
         """Cancel a running task."""
         try:
@@ -816,6 +889,7 @@ def register_routes(app):
             return jsonify({'success': False, 'error': str(e)}), 500
 
     @app.route('/api/tasks/clear-completed', methods=['POST'])
+    @requires_auth
     def api_clear_completed_tasks():
         """Clear all completed, failed, and cancelled tasks."""
         try:

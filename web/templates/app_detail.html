@@ -57,7 +57,7 @@
                         {% if api_overview %}
                         <div class="mt-3">
                             <h6>Detailed Description:</h6>
-                            <div class="text-muted">{{ api_overview|safe }}</div>
+                            <div class="text-muted">{{ api_overview }}</div>
                         </div>
                         {% endif %}
 
@@ -179,7 +179,7 @@
                             <tr class="collapse" id="notes-{{ version.version_id }}">
                                 <td colspan="8" class="bg-light">
                                     <strong>Release Notes:</strong>
-                                    <div class="mt-2">{{ version.release_notes | safe }}</div>
+                                    <div class="mt-2" style="white-space: pre-wrap;">{{ version.release_notes }}</div>
                                 </td>
                             </tr>
                             {% endif %}

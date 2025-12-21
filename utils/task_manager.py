@@ -47,6 +47,14 @@ class TaskManager:
     
     def _run_task(self, task_id: str, script_name: str, args: list = None):
         """Run a task in background thread."""
+        # Security: Whitelist of allowed scripts
+        ALLOWED_SCRIPTS = {
+            'run_scraper.py',
+            'run_version_scraper.py',
+            'run_downloader.py',
+            'run_description_downloader.py'
+        }
+
         def run():
             with self.lock:
                 self.tasks[task_id] = {
@@ -58,8 +66,32 @@ class TaskManager:
                     'current_action': 'Initializing...'
                 }
                 self._save_status()
-            
+
             try:
+                # Security: Validate script_name is in whitelist
+                if script_name not in ALLOWED_SCRIPTS:
+                    error_msg = f"Script not allowed: {script_name}. Only whitelisted scripts can be executed."
+                    logger.error(error_msg)
+                    with self.lock:
+                        self.tasks[task_id]['status'] = 'failed'
+                        self.tasks[task_id]['message'] = error_msg
+                        self.tasks[task_id]['finished_at'] = datetime.now().isoformat()
+                        self.tasks[task_id]['error'] = error_msg
+                        self._save_status()
+                    return
+
+                # Security: Validate script_name doesn't contain path traversal
+                if '..' in script_name or '/' in script_name or '\\' in script_name:
+                    error_msg = f"Invalid script name: {script_name}"
+                    logger.error(error_msg)
+                    with self.lock:
+                        self.tasks[task_id]['status'] = 'failed'
+                        self.tasks[task_id]['message'] = error_msg
+                        self.tasks[task_id]['finished_at'] = datetime.now().isoformat()
+                        self.tasks[task_id]['error'] = error_msg
+                        self._save_status()
+                    return
+
                 # Get base directory
                 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
                 script_path = os.path.join(base_dir, script_name)
