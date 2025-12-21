@@ -113,5 +113,79 @@ None - all changes are backward compatible
 - Enables parallel scraping with multiple accounts
 - Adds vendor documentation links to plugin descriptions
 - Fixes slow page loading on `/manage` page
+- Adds full-text search functionality for plugin descriptions and release notes
+- Fixes disappearing search results issue
+- Adds documentation button on app detail page
 ```
+
+## Additional Features (v2.1)
+
+### 5. Full-Text Search with Whoosh
+- Integrated Whoosh library for full-text search
+- Search across all descriptions: JSON, full page HTML, release notes
+- Automatic HTML tag removal before indexing
+- Support for complex queries (phrases, wildcards, boolean operators)
+- Relevance ranking of search results
+- Highlighting of matches in results
+- Automatic index rebuilding when needed
+- Search page `/search` with user-friendly interface
+- API endpoint `/api/search` for programmatic access
+- Index stored in `DESCRIPTIONS_DIR/.whoosh_index/`
+- **Manual index building task** with progress tracking:
+  - New task "Build Search Index" in Management page
+  - Real-time progress display (processed/indexed count)
+  - Can be started manually through web interface
+  - Progress visible in task status and logs
+
+### 6. Documentation Button on App Detail Page
+- Added documentation button on `/apps/<addon_key>` page
+- Active button (blue) if documentation URL is available
+- Disabled button (gray) with tooltip if URL is missing
+- Consistent with descriptions list page
+
+### 7. Fixed Release Notes Display
+- Fixed HTML rendering in release notes (using `|safe` filter)
+- Proper display of HTML content in collapsible sections
+- Improved formatting and readability
+
+### 8. Search Improvements
+- Fixed issue with disappearing search results
+- Added query validation to prevent stale results
+- Improved error handling and user feedback
+- Better context extraction for matches
+
+## Additional Technical Changes
+
+### Files Modified
+- `web/routes.py`: Added search routes, documentation URL extraction in app_detail, added `/api/tasks/start/build-index` endpoint
+- `web/templates/app_detail.html`: Added documentation button, fixed release notes HTML rendering
+- `web/templates/search.html`: New search page with Whoosh integration
+- `web/templates/base.html`: Added Search navigation link
+- `web/templates/manage.html`: Added "Build Search Index" task section with button and status display
+- `web/search_index_whoosh.py`: New module for Whoosh-based search indexing, added progress output
+- `utils/task_manager.py`: Added `start_build_search_index()` method, added `run_index_search.py` to allowed scripts
+- `run_index_search.py`: New script for building search index with progress tracking
+- `requirements.txt`: Added `whoosh==2.7.4` dependency
+- `SEARCH_LIBRARIES.md`: New documentation file explaining search library choice
+
+### API Changes
+- `app_detail()` route: Added `documentation_url` extraction and passing to template
+- `/api/search`: New endpoint for full-text search
+- `/api/tasks/start/build-index`: New endpoint for starting index building task (with progress tracking)
+- `/api/search/rebuild-index`: New endpoint for manual index rebuilding (synchronous, deprecated in favor of task-based approach)
+- `TaskManager.start_build_search_index()`: New method for starting index building as background task
+- `WhooshSearchIndex.build_index()`: Now returns indexed count and prints progress during indexing
+
+### Data Format Changes
+- App detail page now displays documentation URL if available
+- Search index stored in Whoosh format (binary index files)
+
+## Additional Testing
+- Tested Whoosh search with various query types
+- Verified HTML tag removal from indexed content
+- Confirmed search across JSON, HTML, and release notes
+- Tested index rebuilding functionality
+- Validated documentation button display logic
+- Tested release notes HTML rendering
+- Fixed disappearing search results issue
 

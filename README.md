@@ -14,10 +14,14 @@ The stable release line is maintained in the `stable` branch.
 - **Complete Marketplace Scraping**: Scrapes all apps across Jira, Confluence, Bitbucket, Bamboo, and Crowd
 - **Version Filtering**: Filters versions released in the last year, Server/Data Center hosting only
 - **Binary Downloads**: Downloads JAR/OBR files with resume capability
+- **Plugin Descriptions**: Downloads full page descriptions with media files
+- **Full-Text Search**: Search across plugin descriptions and release notes using Whoosh
+- **Manual Index Building**: Build search index as background task with progress tracking
 - **Web Interface**: Flask-based UI for browsing apps and versions
 - **Checkpoint/Resume**: Robust checkpoint system for interrupted scraping
 - **Concurrent Downloads**: Multi-threaded downloads with configurable concurrency
 - **Metadata Storage**: SQLite database for apps and versions
+- **Vendor Documentation Links**: Automatic extraction and display of vendor documentation URLs
 
 ## Architecture
 
@@ -87,6 +91,8 @@ See [SETUP_GUIDE.md](SETUP_GUIDE.md) for detailed instructions.
    pip install -r requirements.txt
    ```
 
+   **Note:** The project uses **Whoosh** library for full-text search. It will be installed automatically with other dependencies.
+
 4. **Configure environment variables:**
    Create `.env` file with your credentials and settings (see Configuration section)
 
@@ -155,7 +161,9 @@ python app.py
 **Features:**
 - Dashboard with statistics
 - App catalog with search and filtering
-- Version details with download links
+- Full-text search across plugin descriptions and release notes
+- Version details with download links and release notes
+- Vendor documentation links
 - REST API endpoints (`/api/*`)
 
 ## Configuration
@@ -209,6 +217,8 @@ The web interface provides REST API endpoints:
 - `GET /api/apps/<addon_key>` - Get app details
 - `GET /api/stats` - Get statistics
 - `GET /api/products` - Get product list
+- `GET /api/search?q=query` - Full-text search across descriptions and release notes
+- `POST /api/search/rebuild-index` - Rebuild search index (admin only)
 - `GET /download/<product>/<app_key>/<version_id>` - Download binary
 
 ## Data Storage
