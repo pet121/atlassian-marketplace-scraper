@@ -74,8 +74,8 @@ if (Test-Path ".env") {
     # Create .env file
     $envContent = @"
 # Atlassian Marketplace API Credentials
-MARKETPLACE_USERNAME=maxpowertexas1986@gmail.com
-MARKETPLACE_API_TOKEN=ATATT3xFfGF0aDF3jnpXPlwQYz1_0suIGIsEAJBTZcLCpcZNnbr6vjk-BYPpLugB3yxZcfk5eHhVfliWJwc-z4JIXz01lC9-HGOvzWX4TAPZVVmtr1aEgR2tSvB7OpudZaQEkCpquUEgnIkEAG84F6bhpx5MZGFOFEMg1t-Ey6kx86tYu8AGeCk=9DF81475
+MARKETPLACE_USERNAME=@gmail.com
+MARKETPLACE_API_TOKEN
 
 # Storage Configuration
 USE_SQLITE=True
