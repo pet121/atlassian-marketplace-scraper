@@ -136,6 +136,32 @@ def create_app():
     app.config['SECRET_KEY'] = settings.SECRET_KEY
     app.config['DEBUG'] = settings.FLASK_DEBUG
 
+    # Security: Secure cookie settings
+    app.config['SESSION_COOKIE_SECURE'] = not settings.FLASK_DEBUG  # HTTPS only in production
+    app.config['SESSION_COOKIE_HTTPONLY'] = True  # Prevent JavaScript access
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # CSRF protection
+    app.config['PERMANENT_SESSION_LIFETIME'] = 3600  # 1 hour session timeout
+
+    # Security headers
+    @app.after_request
+    def set_security_headers(response):
+        """Add security headers to all responses."""
+        # Prevent clickjacking
+        response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+        # Prevent MIME type sniffing
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        # XSS protection (legacy but still useful)
+        response.headers['X-XSS-Protection'] = '1; mode=block'
+        # Referrer policy
+        response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+
+        # HTTPS enforcement (only in production)
+        if not settings.FLASK_DEBUG:
+            # Enforce HTTPS for 1 year
+            response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+
+        return response
+
     # Setup logging
     setup_logging()
 
