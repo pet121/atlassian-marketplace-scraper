@@ -422,6 +422,106 @@ def register_routes(app):
                         # Insert after html tag
                         html_content = re.sub(r'(<html[^>]*>)', r'\1\n<head>\n    <meta charset="UTF-8">\n</head>', html_content, count=1)
 
+                # Disable React hydration by directly modifying the HTML
+                # This prevents the 404 error when viewing offline (React Router doesn't match our URL)
+                html_content = html_content.replace('"shouldHydrate":true', '"shouldHydrate":false')
+                html_content = html_content.replace("'shouldHydrate':true", "'shouldHydrate':false")
+
+                # Remove ALL JavaScript to prevent React hydration and routing issues
+                html_content = re.sub(
+                    r'<script\b[^>]*>.*?</script>',
+                    '',
+                    html_content,
+                    flags=re.DOTALL | re.IGNORECASE
+                )
+
+                # Inject our own lightweight offline functionality script
+                offline_script = '''<script>
+(function() {
+    'use strict';
+    document.addEventListener('DOMContentLoaded', function() {
+        // YouTube player activation
+        var ytContainers = document.querySelectorAll('[class*="yt-lite"], [data-testid="lite-yt-embed"]');
+
+        // First, find all video IDs from preload links (these have original YouTube URLs)
+        var videoIds = [];
+        document.querySelectorAll('link[rel="preload"][href*="ytimg.com"]').forEach(function(link) {
+            var match = link.href.match(/vi[_/](?:webp\/)?([a-zA-Z0-9_-]{11})/);
+            if (match) videoIds.push(match[1]);
+        });
+
+        ytContainers.forEach(function(container, index) {
+            // Try to get video ID from preload links first
+            var videoId = videoIds[index] || null;
+
+            // Fallback: try to extract from image src or background
+            if (!videoId) {
+                var img = container.querySelector('img');
+                if (img && img.src) {
+                    var match = img.src.match(/vi[_/]([a-zA-Z0-9_-]{11})/);
+                    if (match) videoId = match[1];
+                }
+            }
+            if (!videoId) {
+                var bgImg = window.getComputedStyle(container).backgroundImage || '';
+                var bgMatch = bgImg.match(/vi[_/]([a-zA-Z0-9_-]{11})/);
+                if (bgMatch) videoId = bgMatch[1];
+            }
+            if (!videoId) {
+                console.log('[Offline] No video ID found for container', index);
+                return;
+            }
+
+            console.log('[Offline] Found video ID:', videoId);
+            container.style.cursor = 'pointer';
+            container.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                var iframe = document.createElement('iframe');
+                iframe.src = 'https://www.youtube.com/embed/' + videoId + '?autoplay=1&rel=0';
+                iframe.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;border:none;';
+                iframe.setAttribute('allowfullscreen', '');
+                iframe.setAttribute('allow', 'autoplay; encrypted-media');
+                container.innerHTML = '';
+                container.style.position = 'relative';
+                container.appendChild(iframe);
+            });
+        });
+
+        // Image lightbox activation - target all content images
+        var images = document.querySelectorAll('img[data-testid*="highlight"], img[data-testid*="listing"], section img, article img, main img');
+        images.forEach(function(img) {
+            // Skip tiny images (icons, logos)
+            if (img.width < 100 && img.height < 100) return;
+            // Skip images inside YouTube containers
+            if (img.closest('[class*="yt-lite"]')) return;
+
+            img.style.cursor = 'pointer';
+            img.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                var src = img.src;
+                if (!src) return;
+
+                var overlay = document.createElement('div');
+                overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.9);z-index:10000;display:flex;align-items:center;justify-content:center;cursor:pointer;';
+                var fullImg = document.createElement('img');
+                fullImg.src = src;
+                fullImg.style.cssText = 'max-width:90%;max-height:90%;object-fit:contain;';
+                overlay.appendChild(fullImg);
+                overlay.addEventListener('click', function() { overlay.remove(); });
+                document.body.appendChild(overlay);
+            });
+        });
+    });
+})();
+</script>'''
+                # Insert before </head>
+                if '</head>' in html_content:
+                    html_content = html_content.replace('</head>', offline_script + '</head>', 1)
+                elif '</HEAD>' in html_content:
+                    html_content = html_content.replace('</HEAD>', offline_script + '</HEAD>', 1)
+
                 # Inject navigation back to app detail
                 nav_html = f'''
                 <div style="background: #fff; padding: 1rem; margin-bottom: 1rem; border-bottom: 2px solid #0f5ef7; position: sticky; top: 0; z-index: 1000;">

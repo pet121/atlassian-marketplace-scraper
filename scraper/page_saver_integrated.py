@@ -13,7 +13,7 @@ import mimetypes
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Optional, Tuple, List
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse, parse_qs, urlencode, urlunparse
 
 import requests
 from bs4 import BeautifulSoup
@@ -68,6 +68,52 @@ def _hashed_name(url: str, fallback_ext: str = "") -> str:
 
 def _is_data_url(u: str) -> bool:
     return u.strip().startswith("data:")
+
+
+def _get_full_resolution_url(url: str) -> str:
+    """
+    Convert image URL to full resolution by removing/modifying size parameters.
+
+    Handles common CDN patterns:
+    - ?width=300&height=160 -> remove these params
+    - /w_300,h_160/ (Cloudinary) -> remove or increase
+    - ?w=300&h=160 -> remove these params
+    """
+    if not url or _is_data_url(url):
+        return url
+
+    try:
+        parsed = urlparse(url)
+
+        # Parse query parameters
+        params = parse_qs(parsed.query, keep_blank_values=True)
+
+        # Remove common size-limiting parameters
+        size_params = ['width', 'height', 'w', 'h', 'size', 'resize',
+                       'maxwidth', 'maxheight', 'max-width', 'max-height',
+                       'fit', 'crop', 'thumbnail']
+        modified = False
+        for param in size_params:
+            if param in params:
+                del params[param]
+                modified = True
+
+        if modified:
+            # Rebuild the URL without size parameters
+            new_query = urlencode(params, doseq=True) if params else ''
+            new_url = urlunparse((
+                parsed.scheme,
+                parsed.netloc,
+                parsed.path,
+                parsed.params,
+                new_query,
+                parsed.fragment
+            ))
+            return new_url
+
+        return url
+    except Exception:
+        return url
 
 
 # CSS url() processing
@@ -223,22 +269,54 @@ class _Saver:
         abs_u = self._abs_url(base_url, value)
         if not abs_u:
             return value
+
+        # For images, try to get full resolution by removing size parameters
+        if kind == "img":
+            abs_u = _get_full_resolution_url(abs_u)
+
         if not self.offline:
             return abs_u
         sub = {"img": "img", "media": "media"}.get(kind, "assets")
         return self._save_asset(abs_u, subfolder=sub)
 
     def _process_srcset(self, base_url: str, srcset_value: str) -> str:
+        """Process srcset, keeping only the largest image for offline use."""
+        if not srcset_value:
+            return ""
+
         parts = []
-        for item in (srcset_value or "").split(","):
+        max_width = 0
+        best_url = None
+
+        for item in srcset_value.split(","):
             item = item.strip()
             if not item:
                 continue
             tokens = item.split()
             url_part = tokens[0]
             desc = " ".join(tokens[1:]) if len(tokens) > 1 else ""
+
+            # Parse width descriptor (e.g., "300w")
+            width = 0
+            for d in desc.split():
+                if d.endswith('w'):
+                    try:
+                        width = int(d[:-1])
+                    except ValueError:
+                        pass
+
             new_url = self._handle_src_like(base_url, url_part, kind="img")
             parts.append((new_url, desc))
+
+            # Track the largest image
+            if width > max_width:
+                max_width = width
+                best_url = new_url
+
+        # For offline mode, return only the largest image to save space
+        if self.offline and best_url:
+            return best_url
+
         return ", ".join((" ".join([u, d]).strip() for u, d in parts))
 
     def _inject_base_tag(self, soup: BeautifulSoup, base_url: str):
@@ -270,6 +348,24 @@ class _Saver:
         patch_script.string = """
         (function() {
             'use strict';
+            // Disable React hydration to prevent 404 errors when viewing offline
+            // The React app checks URL against its routes; our Flask URLs don't match
+            if (typeof window !== 'undefined') {
+                var _initialState = null;
+                Object.defineProperty(window, '__INITIAL_STATE__', {
+                    get: function() { return _initialState; },
+                    set: function(value) {
+                        // Intercept and disable hydration when __INITIAL_STATE__ is set
+                        if (value && value.initialConfig) {
+                            value.initialConfig.shouldHydrate = false;
+                        }
+                        _initialState = value;
+                    },
+                    configurable: true
+                });
+                // Mark that hydration is disabled
+                Object.defineProperty(window, '__HYDRATION_DISABLED__', { value: true, writable: false });
+            }
             if (typeof fetch !== 'undefined') {
                 const originalFetch = window.fetch;
                 window.fetch = function(...args) {
@@ -1030,12 +1126,32 @@ class _Saver:
             self._disable_error_scripts(soup)
             self._fix_absolute_paths(soup, base_url)
 
-        # <img>
+        # <img> - prioritize full resolution sources
         for img in soup.find_all("img"):
+            # Check for data-src (often contains full resolution)
+            if img.has_attr("data-src"):
+                data_src = self._handle_src_like(base_url, img["data-src"], kind="img")
+                # Use data-src as the main src if available
+                if data_src and not _is_data_url(img.get("src", "")):
+                    img["src"] = data_src
+                del img["data-src"]
+
+            # Process srcset first to potentially get a better image
+            best_from_srcset = None
+            if img.has_attr("srcset"):
+                processed_srcset = self._process_srcset(base_url, img["srcset"])
+                # In offline mode, _process_srcset returns just the best URL
+                if self.offline and processed_srcset and not "," in processed_srcset:
+                    best_from_srcset = processed_srcset
+                img["srcset"] = processed_srcset
+
+            # Process src
             if img.has_attr("src"):
                 img["src"] = self._handle_src_like(base_url, img["src"], kind="img")
-            if img.has_attr("srcset"):
-                img["srcset"] = self._process_srcset(base_url, img["srcset"])
+
+            # If we found a better image from srcset, use it as src
+            if best_from_srcset:
+                img["src"] = best_from_srcset
 
         # <link rel="stylesheet"> and icons
         for link in soup.find_all("link"):
@@ -1076,6 +1192,9 @@ class _Saver:
         out_html = str(soup)
         if not out_html.strip().startswith('<!DOCTYPE'):
             out_html = '<!DOCTYPE html>\n' + out_html
+        # Disable React hydration to prevent 404 errors when viewing offline
+        out_html = out_html.replace('"shouldHydrate":true', '"shouldHydrate":false')
+        out_html = out_html.replace("'shouldHydrate':true", "'shouldHydrate':false")
         self.out_html.write_text(out_html, encoding="utf-8", errors="replace")
         logger.info(f"Page saved: {self.out_html}")
 
