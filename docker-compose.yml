@@ -65,10 +65,38 @@ services:
     profiles:
       - scraping
 
+  # Description downloader (run after version scraper)
+  description-downloader:
+    build: .
+    container_name: atlassian-scraper-descriptions
+    command: python run_description_downloader.py
+    volumes:
+      - ./data/metadata:/app/data/metadata
+      - ./logs:/app/logs
+      - ${BINARIES_PATH:-./data/binaries}:/app/data/binaries
+    env_file:
+      - .env
+    networks:
+      - scraper-network
+    profiles:
+      - scraping
+
+  # Search indexer (run after descriptions downloaded)
+  search-indexer:
+    build: .
+    container_name: atlassian-scraper-indexer
+    command: python run_index_search.py
+    volumes:
+      - ./data/metadata:/app/data/metadata
+      - ./logs:/app/logs
+      - ${BINARIES_PATH:-./data/binaries}:/app/data/binaries
+    env_file:
+      - .env
+    networks:
+      - scraper-network
+    profiles:
+      - scraping
+
 networks:
   scraper-network:
     driver: bridge
-
-volumes:
-  data:
-  logs:
