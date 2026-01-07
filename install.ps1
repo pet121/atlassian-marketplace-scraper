@@ -71,72 +71,46 @@ if (Test-Path ".env") {
     Write-Host "[WARNING] .env file already exists, skipping creation" -ForegroundColor Yellow
     Write-Host "  Edit .env manually if needed" -ForegroundColor Yellow
 } else {
-    # Generate SECRET_KEY
+    # Check if .env.example exists
+    if (-not (Test-Path ".env.example")) {
+        Write-Host "[ERROR] .env.example not found!" -ForegroundColor Red
+        Write-Host "  Cannot create .env file without template" -ForegroundColor Red
+        exit 1
+    }
+
+    # Copy .env.example to .env
+    Copy-Item ".env.example" ".env"
+
+    # Generate SECRET_KEY and replace in .env
     try {
         $secretKey = & "venv\Scripts\python.exe" -c "import secrets; print(secrets.token_hex(32))" 2>$null
         if (-not $secretKey -or $secretKey -eq "") {
             throw "Failed to generate"
         }
         $secretKey = $secretKey.Trim()
+
+        # Read .env content
+        $envContent = Get-Content ".env" -Raw
+
+        # Replace SECRET_KEY placeholder
+        $envContent = $envContent -replace 'SECRET_KEY=change-this-to-a-random-secret-key', "SECRET_KEY=$secretKey"
+
+        # Write back to .env
+        [System.IO.File]::WriteAllText((Join-Path $PWD ".env"), $envContent, [System.Text.Encoding]::UTF8)
+
+        Write-Host "[OK] .env file created from .env.example" -ForegroundColor Green
+        Write-Host "  [OK] SECRET_KEY automatically generated" -ForegroundColor Green
     } catch {
-        $secretKey = "dev-secret-key-change-in-production-use-random-string"
+        Write-Host "[OK] .env file created from .env.example" -ForegroundColor Green
+        Write-Host "  [WARNING] Could not generate SECRET_KEY automatically" -ForegroundColor Yellow
+        Write-Host "  Generate manually with: python -c `"import secrets; print(secrets.token_hex(32))`"" -ForegroundColor Yellow
     }
-    
-    # Create .env file
-    $envContent = @"
-# Atlassian Marketplace API Credentials
-MARKETPLACE_USERNAME=maxpowertexas1986@gmail.com
-MARKETPLACE_API_TOKEN=ATATT3xFfGF0aDF3jnpXPlwQYz1_0suIGIsEAJBTZcLCpcZNnbr6vjk-BYPpLugB3yxZcfk5eHhVfliWJwc-z4JIXz01lC9-HGOvzWX4TAPZVVmtr1aEgR2tSvB7OpudZaQEkCpquUEgnIkEAG84F6bhpx5MZGFOFEMg1t-Ey6kx86tYu8AGeCk=9DF81475
 
-# Storage Configuration
-USE_SQLITE=True
-
-# Metadata on drive I:
-METADATA_DIR=I:\marketplace\metadata
-DATABASE_PATH=I:\marketplace\marketplace.db
-
-# Binary files distributed across drives:
-# Jira -> H:\
-BINARIES_DIR_JIRA=H:\marketplace-binaries\jira
-# Confluence -> K:\
-BINARIES_DIR_CONFLUENCE=K:\marketplace-binaries\confluence
-# Bitbucket -> V:\
-BINARIES_DIR_BITBUCKET=V:\marketplace-binaries\bitbucket
-# Bamboo -> W:\
-BINARIES_DIR_BAMBOO=W:\marketplace-binaries\bamboo
-# Crowd -> F:\
-BINARIES_DIR_CROWD=F:\marketplace-binaries\crowd
-
-# Base path (used as fallback)
-BINARIES_BASE_DIR=H:\marketplace-binaries
-
-# Descriptions (plugin descriptions with images/videos)
-# If not set, defaults to METADATA_DIR/descriptions
-# DESCRIPTIONS_DIR=K:\marketplace-descriptions
-
-# Logs on drive I:
-LOGS_DIR=I:\marketplace\logs
-
-# Flask Settings
-FLASK_PORT=5000
-FLASK_DEBUG=True
-SECRET_KEY=$secretKey
-
-# Scraper Settings
-SCRAPER_BATCH_SIZE=50
-SCRAPER_REQUEST_DELAY=0.5
-VERSION_AGE_LIMIT_DAYS=365
-MAX_CONCURRENT_DOWNLOADS=3
-MAX_VERSION_SCRAPER_WORKERS=10
-MAX_RETRY_ATTEMPTS=3
-
-# Logging
-LOG_LEVEL=INFO
-"@
-    
-    [System.IO.File]::WriteAllText((Join-Path $PWD ".env"), $envContent, [System.Text.Encoding]::UTF8)
-    Write-Host "[OK] .env file created with basic settings" -ForegroundColor Green
-    Write-Host "  [OK] SECRET_KEY automatically generated" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "[IMPORTANT] Edit .env file to configure:" -ForegroundColor Yellow
+    Write-Host "  - MARKETPLACE_USERNAME and MARKETPLACE_API_TOKEN (your credentials)" -ForegroundColor White
+    Write-Host "  - ADMIN_USERNAME and ADMIN_PASSWORD (for management interface)" -ForegroundColor White
+    Write-Host "  - Storage paths if you want to use custom locations" -ForegroundColor White
 }
 
 Write-Host ""
@@ -145,9 +119,13 @@ Write-Host "[OK] Installation completed!" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Next steps:" -ForegroundColor Yellow
-Write-Host "1. Activate virtual environment: venv\Scripts\Activate.ps1" -ForegroundColor White
-Write-Host "2. Run scraper: python run_scraper.py" -ForegroundColor White
+Write-Host "1. Edit .env file with your credentials and settings" -ForegroundColor White
+Write-Host "2. Run launcher: .\start.ps1 or start.bat" -ForegroundColor White
+Write-Host "   OR activate venv and run manually: venv\Scripts\Activate.ps1" -ForegroundColor White
 Write-Host ""
-Write-Host "To generate new SECRET_KEY:" -ForegroundColor Yellow
-Write-Host "  python -c `"import secrets; print(secrets.token_hex(32))`"" -ForegroundColor White
+Write-Host "Quick commands:" -ForegroundColor Yellow
+Write-Host "  .\start.ps1                    - Start web interface" -ForegroundColor White
+Write-Host "  python run_scraper.py          - Scrape apps" -ForegroundColor White
+Write-Host "  python run_version_scraper.py  - Scrape versions" -ForegroundColor White
+Write-Host "  python run_downloader.py       - Download binaries" -ForegroundColor White
 Write-Host ""
