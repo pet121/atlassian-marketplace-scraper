@@ -9,7 +9,7 @@ Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
 # Check Python
-Write-Host "[1/4] Checking Python..." -ForegroundColor Yellow
+Write-Host "[1/5] Checking Python..." -ForegroundColor Yellow
 try {
     $pythonVersion = python --version 2>&1
     if ($LASTEXITCODE -ne 0) {
@@ -23,7 +23,7 @@ try {
 
 # Create virtual environment
 Write-Host ""
-Write-Host "[2/4] Creating virtual environment..." -ForegroundColor Yellow
+Write-Host "[2/5] Creating virtual environment..." -ForegroundColor Yellow
 if (Test-Path "venv") {
     Write-Host "[OK] Virtual environment already exists" -ForegroundColor Green
 } else {
