@@ -22,15 +22,13 @@
             <div class="card-body">
                 <div class="row">
                     <div class="col-md-1">
-                        {% if app.logo_url %}
-                        <img src="{{ app.logo_url }}" alt="{{ app.name }}"
-                             class="img-thumbnail" style="width: 80px; height: 80px;">
-                        {% else %}
+                        <img src="{{ url_for('app_logo', addon_key=app.addon_key) }}" alt="{{ app.name }}"
+                             class="img-thumbnail" style="width: 80px; height: 80px;"
+                             onerror="this.onerror=null; {% if app.logo_url %}this.src='{{ app.logo_url }}';{% else %}this.style.display='none'; this.nextElementSibling.style.display='flex';{% endif %}">
                         <div class="bg-secondary text-white text-center"
-                             style="width: 80px; height: 80px; line-height: 80px; font-size: 2rem;">
+                             style="width: 80px; height: 80px; line-height: 80px; font-size: 2rem; display: none; align-items: center; justify-content: center;">
                             <i class="bi bi-app"></i>
                         </div>
-                        {% endif %}
                     </div>
 
                     <div class="col-md-11">

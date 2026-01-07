@@ -79,15 +79,13 @@
                     {% for app in apps %}
                     <tr>
                         <td>
-                            {% if app.logo_url %}
-                            <img src="{{ app.logo_url }}" alt="{{ app.name }}"
-                                 class="img-thumbnail" style="width: 48px; height: 48px;">
-                            {% else %}
+                            <img src="{{ url_for('app_logo', addon_key=app.addon_key) }}" alt="{{ app.name }}"
+                                 class="img-thumbnail" style="width: 48px; height: 48px;"
+                                 onerror="this.onerror=null; {% if app.logo_url %}this.src='{{ app.logo_url }}';{% else %}this.style.display='none'; this.nextElementSibling.style.display='flex';{% endif %}">
                             <div class="bg-secondary text-white text-center"
-                                 style="width: 48px; height: 48px; line-height: 48px;">
+                                 style="width: 48px; height: 48px; line-height: 48px; display: none; align-items: center; justify-content: center;">
                                 <i class="bi bi-app"></i>
                             </div>
-                            {% endif %}
                         </td>
                         <td>
                             <strong>{{ app.name }}</strong><br>

@@ -234,6 +234,44 @@ def register_routes(app):
             logger.error(f"Error serving asset {addon_key}/{asset_path}: {str(e)}")
             return render_template('error.html', error=str(e)), 500
 
+    @app.route('/apps/<addon_key>/logo')
+    def app_logo(addon_key):
+        """Serve local app logo if available."""
+        try:
+            # Security: Validate addon_key to prevent path traversal
+            if '..' in addon_key or '/' in addon_key or '\\' in addon_key:
+                return render_template('error.html', error="Invalid addon key"), 400
+
+            # Look for logo file in description directory
+            addon_dir = os.path.join(
+                settings.DESCRIPTIONS_DIR,
+                addon_key.replace('.', '_')
+            )
+
+            # Check for logo with various extensions
+            mime_types = {
+                '.webp': 'image/webp',
+                '.png': 'image/png',
+                '.jpg': 'image/jpeg',
+                '.jpeg': 'image/jpeg',
+                '.gif': 'image/gif',
+                '.svg': 'image/svg+xml'
+            }
+            for ext, mimetype in mime_types.items():
+                logo_path = os.path.join(addon_dir, f'logo{ext}')
+                if os.path.exists(logo_path) and os.path.isfile(logo_path):
+                    # Security: Verify resolved path is within expected directory
+                    base_dir = os.path.realpath(addon_dir)
+                    real_path = os.path.realpath(logo_path)
+                    if real_path.startswith(base_dir):
+                        return send_file(logo_path, mimetype=mimetype)
+
+            # Logo not found - return 404
+            return '', 404
+        except Exception as e:
+            logger.error(f"Error serving logo for {addon_key}: {str(e)}")
+            return '', 500
+
     @app.route('/apps/<addon_key>/description/<path:filename>')
     def app_description(addon_key, filename):
         """Show downloaded description page."""

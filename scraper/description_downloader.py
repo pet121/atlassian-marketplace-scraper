@@ -122,15 +122,23 @@ class DescriptionDownloader:
         os.makedirs(self.descriptions_dir, exist_ok=True)
         logger.debug(f"Descriptions directory: {self.descriptions_dir}")
 
-    def _fetch(self, url: str, params: Optional[Dict] = None) -> Dict:
+    def _fetch(self, url: str, params: Optional[Dict] = None, log_errors: bool = True) -> Dict:
         """Fetch data from API."""
         try:
             response = self.session.get(url, params=params, timeout=60)
             response.raise_for_status()
             data = response.json()
             return data if isinstance(data, dict) else {"value": data}
+        except HTTPError as e:
+            # Log 404s at debug level (expected for optional endpoints)
+            if e.response is not None and e.response.status_code == 404:
+                logger.debug(f"Not found (404): {url}")
+            elif log_errors:
+                logger.error(f"Error fetching {url}: {str(e)}")
+            raise
         except Exception as e:
-            logger.error(f"Error fetching {url}: {str(e)}")
+            if log_errors:
+                logger.error(f"Error fetching {url}: {str(e)}")
             raise
 
     def _fetch_with_fallback(
@@ -139,9 +147,9 @@ class DescriptionDownloader:
         fallback_url: Optional[str] = None,
         params: Optional[Dict] = None
     ) -> Dict:
-        """Fetch with fallback URL."""
+        """Fetch with fallback URL. Silently tries fallbacks on 404 (these endpoints are optional)."""
         try:
-            return self._fetch(primary_url, params=params)
+            return self._fetch(primary_url, params=params, log_errors=False)
         except HTTPError as exc:
             if exc.response is None or exc.response.status_code != 404:
                 raise
@@ -157,10 +165,12 @@ class DescriptionDownloader:
 
             for candidate_url, candidate_params in candidates:
                 try:
-                    return self._fetch(candidate_url, params=candidate_params)
+                    return self._fetch(candidate_url, params=candidate_params, log_errors=False)
                 except HTTPError:
                     continue
 
+            # Log once at debug level when all fallbacks exhausted
+            logger.debug(f"Optional endpoint not available: {primary_url}")
             return {"error": "not-found", "url": primary_url, "fallback_url": fallback_url}
 
     def _get_versions(self, addon_key: str, hosting: str = "datacenter", limit: int = 100) -> List[Dict]:
@@ -220,8 +230,13 @@ class DescriptionDownloader:
         summary = addon.get("summary") or ""
         tagline = addon.get("tagLine") or ""
         legacy_description = addon.get("legacy", {}).get("description")
-        overview_body = overview.get("body") or overview.get("content")
+        # New structure: overview.moreDetails, old structure: overview.body
+        overview_body = overview.get("moreDetails") or overview.get("body") or overview.get("content")
         description_html = overview_body or legacy_description or "<p>Description not available.</p>"
+
+        # Release notes from new structure
+        release_notes = overview.get("releaseNotes", "")
+        release_summary = overview.get("releaseSummary", "")
 
         categories = [
             escape(cat.get("name", ""))
@@ -260,7 +275,21 @@ class DescriptionDownloader:
             vendor_links_html = "<ul class=\"link-list\">" + "\n".join(items) + "</ul>"
 
         highlight_sections_html = ""
-        if isinstance(highlights, dict) and "error" not in highlights:
+        # New structure: highlights is a list directly from _embedded.highlights
+        # Old structure: highlights._embedded.highlightSections[]
+        if isinstance(highlights, list) and highlights:
+            parts = []
+            for section in highlights:
+                title = escape(section.get("title") or section.get("heading") or "Highlight")
+                body = section.get("body") or section.get("description") or ""
+                explanation = section.get("explanation", "")
+                parts.append(f'<div class="highlight-block"><h3>{title}</h3>{body}')
+                if explanation:
+                    parts[-1] += f'<p class="explanation">{escape(explanation)}</p>'
+                parts[-1] += '</div>'
+            highlight_sections_html = "\n".join(parts)
+        elif isinstance(highlights, dict) and "error" not in highlights:
+            # Old structure fallback
             sections = highlights.get("_embedded", {}).get("highlightSections", []) or []
             parts = []
             for section in sections:
@@ -273,20 +302,59 @@ class DescriptionDownloader:
 
         media_items_html = ""
         if isinstance(media, dict) and "error" not in media:
-            items = media.get("_embedded", {}).get("media", []) or []
-            media_links = []
-            for idx, item in enumerate(items, start=1):
-                binaries = item.get("_embedded", {}).get("binary", []) or []
-                for binary in binaries:
-                    href = binary.get("href")
-                    if not href:
-                        continue
-                    name = binary.get("name") or binary.get("type") or f"media-{idx}"
-                    media_links.append(f'<li><a href="{escape(href)}" target="_blank" rel="noopener">{escape(name)}</a></li>')
-            if media_links:
-                media_items_html = "<ul class=\"link-list\">" + "\n".join(media_links) + "</ul>"
+            # New structure: media.screenshots[] and media.youtubeId
+            screenshots = media.get("screenshots", [])
+            youtube_id = media.get("youtubeId")
+
+            media_parts = []
+
+            # Add YouTube video if available
+            if youtube_id:
+                media_parts.append(
+                    f'<div class="media-item video">'
+                    f'<iframe width="560" height="315" src="https://www.youtube.com/embed/{escape(youtube_id)}" '
+                    f'frameborder="0" allowfullscreen></iframe></div>'
+                )
+
+            # Add screenshots
+            for idx, screenshot in enumerate(screenshots, start=1):
+                embedded_image = (screenshot.get("_embedded") or {}).get("image", {})
+                image_links = (embedded_image.get("_links") or {})
+                href = None
+                for key in ["image", "unscaled", "highRes"]:
+                    link_data = image_links.get(key, {})
+                    if isinstance(link_data, dict) and link_data.get("href"):
+                        href = link_data["href"]
+                        break
+                if href:
+                    caption = screenshot.get("caption", f"Screenshot {idx}")
+                    media_parts.append(
+                        f'<div class="media-item screenshot">'
+                        f'<a href="{escape(href)}" target="_blank" rel="noopener">'
+                        f'<img src="{escape(href)}" alt="{escape(caption)}" loading="lazy" style="max-width:100%;height:auto;">'
+                        f'</a><p class="caption">{escape(caption)}</p></div>'
+                    )
+
+            # Old structure fallback
+            if not media_parts:
+                items = media.get("_embedded", {}).get("media", []) or []
+                for idx, item in enumerate(items, start=1):
+                    binaries = item.get("_embedded", {}).get("binary", []) or []
+                    for binary in binaries:
+                        href = binary.get("href")
+                        if not href:
+                            continue
+                        name = binary.get("name") or binary.get("type") or f"media-{idx}"
+                        media_parts.append(f'<li><a href="{escape(href)}" target="_blank" rel="noopener">{escape(name)}</a></li>')
+
+            if media_parts:
+                # Check if it's old list format or new div format
+                if media_parts and media_parts[0].startswith('<li>'):
+                    media_items_html = "<ul class=\"link-list\">" + "\n".join(media_parts) + "</ul>"
+                else:
+                    media_items_html = '<div class="media-gallery">' + "\n".join(media_parts) + '</div>'
             else:
-                media_items_html = '<p class="muted">Media links not found.</p>'
+                media_items_html = '<p class="muted">Media not available.</p>'
         else:
             media_items_html = '<p class="muted">Media not available.</p>'
 
@@ -706,48 +774,55 @@ class DescriptionDownloader:
             print(f"      Selected version: {version_name_display}")
             sys.stdout.flush()
 
-            version_id = picked.get("id")
-            if not version_id:
-                self_href = ((picked.get("_links") or {}).get("self") or {}).get("href", "")
-                if isinstance(self_href, str) and self_href:
-                    match = re.search(r"/versions/(?:build/)?(\d+)", self_href)
-                    if match:
-                        version_id = match.group(1)
+            # Extract build number from version self link
+            self_href = ((picked.get("_links") or {}).get("self") or {}).get("href", "")
+            build_number = None
+            if isinstance(self_href, str) and self_href:
+                match = re.search(r"/versions/build/(\d+)", self_href)
+                if match:
+                    build_number = match.group(1)
 
+            # Fallback to version id if no build number
+            version_id = build_number or picked.get("id")
             if not version_id:
-                logger.error(f"Version ID not found for {addon_key}")
+                logger.error(f"Version ID/build number not found for {addon_key}")
                 return None, None
 
-            params = {"locale": locale}
+            # Fetch full version details (contains highlights, screenshots, media, text)
+            # This single endpoint provides all data that was previously fetched from
+            # /overview, /highlights, /media (which don't exist and returned 404)
+            print(f"      Fetching version details...")
+            sys.stdout.flush()
+            version_url = f"{API_BASE}/addons/{addon_key}/versions/build/{version_id}"
+            try:
+                version_details = self._fetch(version_url, params={"locale": locale})
+            except Exception as e:
+                logger.warning(f"Failed to fetch version details: {e}")
+                version_details = {}
 
-            overview_url = f"{API_BASE}/addons/{addon_key}/versions/{version_id}/overview"
-            highlights_url = f"{API_BASE}/addons/{addon_key}/versions/{version_id}/highlights"
-            media_url = f"{API_BASE}/addons/{addon_key}/versions/{version_id}/media"
-            addon_url = f"{API_BASE}/addons/{addon_key}"
+            # Extract data from version details response
+            embedded = version_details.get("_embedded", {})
+            highlights = embedded.get("highlights", [])
+            screenshots = embedded.get("screenshots", [])
+            text_data = version_details.get("text", {})
 
-            print(f"      Fetching overview data...")
-            sys.stdout.flush()
-            overview = self._fetch_with_fallback(
-                overview_url,
-                fallback_url=f"{API_BASE}/addons/{addon_key}/overview",
-                params=params
-            )
-            print(f"      Fetching highlights data...")
-            sys.stdout.flush()
-            highlights = self._fetch_with_fallback(
-                highlights_url,
-                fallback_url=f"{API_BASE}/addons/{addon_key}/highlights",
-                params=params
-            )
-            print(f"      Fetching media data...")
-            sys.stdout.flush()
-            media = self._fetch_with_fallback(
-                media_url,
-                fallback_url=f"{API_BASE}/addons/{addon_key}/media",
-                params=params
-            )
+            # Build overview from text data
+            overview = {
+                "moreDetails": text_data.get("moreDetails", ""),
+                "releaseSummary": text_data.get("releaseSummary", ""),
+                "releaseNotes": text_data.get("releaseNotes", ""),
+            }
+
+            # Build media from screenshots and youtubeId
+            media = {
+                "screenshots": screenshots,
+                "youtubeId": version_details.get("youtubeId"),
+            }
+
+            # Also fetch addon info for summary and other metadata
             print(f"      Fetching addon information...")
             sys.stdout.flush()
+            addon_url = f"{API_BASE}/addons/{addon_key}"
             addon_info = self._fetch(addon_url, params={"locale": locale, "hosting": hosting, "expand": "details"})
 
             # Extract summary from addon_info for easy access
@@ -756,21 +831,27 @@ class DescriptionDownloader:
             # Extract vendor documentation link
             # Use provided documentation_url if available (from full page download), otherwise try API
             if not documentation_url:
-                vendor_links = addon_info.get("vendorLinks", {}) or {}
-                # Look for documentation link in vendorLinks
-                for key, value in vendor_links.items():
-                    if isinstance(value, str) and value:
-                        key_lower = key.lower()
-                        if 'doc' in key_lower or 'documentation' in key_lower or 'guide' in key_lower:
-                            documentation_url = value
-                            break
-                
+                # First try version_details.vendorLinks (most reliable source)
+                vendor_links = version_details.get("vendorLinks", {}) or {}
+                documentation_url = vendor_links.get("documentation")
+
+                # Fall back to addon_info.vendorLinks
+                if not documentation_url:
+                    vendor_links = addon_info.get("vendorLinks", {}) or {}
+                    # Look for documentation link in vendorLinks
+                    for key, value in vendor_links.items():
+                        if isinstance(value, str) and value:
+                            key_lower = key.lower()
+                            if 'doc' in key_lower or 'documentation' in key_lower or 'guide' in key_lower:
+                                documentation_url = value
+                                break
+
                 # Also check in _embedded or other fields
                 if not documentation_url:
-                    embedded = addon_info.get("_embedded", {})
-                    if isinstance(embedded, dict):
+                    addon_embedded = addon_info.get("_embedded", {})
+                    if isinstance(addon_embedded, dict):
                         # Check for documentation in various places
-                        for key, value in embedded.items():
+                        for key, value in addon_embedded.items():
                             if isinstance(value, dict) and 'href' in value:
                                 key_lower = key.lower()
                                 if 'doc' in key_lower or 'documentation' in key_lower:
@@ -806,12 +887,15 @@ class DescriptionDownloader:
                     "id": version_id,
                     "name": picked.get("name"),
                     "released_at": picked.get("releaseDate"),
+                    "release": version_details.get("release", {}),
+                    "compatibilities": version_details.get("compatibilities", []),
                     "raw": picked,
                 },
                 "overview": overview,
                 "highlights": highlights,
                 "media": media,
                 "addon": addon_info,
+                "vendor_links": version_details.get("vendorLinks", {}),
             }
 
             # Create output directory
@@ -835,6 +919,14 @@ class DescriptionDownloader:
                 self._download_media(media, output_dir / "media")
                 print(f"      ✓ Media files downloaded")
 
+            # Download app logo
+            print(f"      Downloading app logo...")
+            logo_path = self._download_logo(addon_info, output_dir)
+            if logo_path:
+                print(f"      ✓ Logo downloaded: {logo_path.name}")
+            else:
+                print(f"      ⚠ Logo not available")
+
             logger.info(f"Description saved for {addon_key}: {json_path}, {html_path}")
             return json_path, html_path
 
@@ -843,35 +935,145 @@ class DescriptionDownloader:
             return None, None
 
     def _download_media(self, media: Dict, media_dir: Path):
-        """Download media files (images/videos)."""
+        """Download media files (screenshots from version details)."""
         if not isinstance(media, dict) or "error" in media:
             return
 
-        media_items = (media.get("_embedded") or {}).get("media", []) or []
-        if not media_items:
+        screenshots = media.get("screenshots", [])
+        if not screenshots:
             return
 
         media_dir.mkdir(parents=True, exist_ok=True)
-        for item in media_items:
-            assets = item.get("_embedded", {}).get("binary", []) if isinstance(item, dict) else []
-            for asset in assets:
-                href = asset.get("href")
-                name = asset.get("name") or asset.get("type") or "media"
-                if not href:
-                    continue
-                try:
-                    response = self.session.get(href, timeout=120)
-                    response.raise_for_status()
-                    extension = Path(href).suffix or ".bin"
-                    filename = f"{name}{extension}"
-                    # Sanitize filename
-                    filename = re.sub(r'[<>:"/\\|?*]', '_', filename)
-                    destination = media_dir / filename
-                    with destination.open("wb") as f:
-                        f.write(response.content)
-                    logger.debug(f"Downloaded media: {filename}")
-                except Exception as e:
-                    logger.warning(f"Failed to download media {href}: {str(e)}")
+
+        # Use image-appropriate headers (session has Accept: application/json which causes 406)
+        image_headers = {
+            "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        }
+
+        for idx, screenshot in enumerate(screenshots):
+            if not isinstance(screenshot, dict):
+                continue
+
+            # Extract image URL from screenshot structure
+            # Structure: _embedded.image._links.image.href or _embedded.image._links.unscaled.href
+            embedded_image = (screenshot.get("_embedded") or {}).get("image", {})
+            image_links = (embedded_image.get("_links") or {})
+
+            # Prefer unscaled (original), fall back to image
+            href = None
+            image_type = "image/png"
+            for key in ["unscaled", "image", "highRes"]:
+                link_data = image_links.get(key, {})
+                if isinstance(link_data, dict) and link_data.get("href"):
+                    href = link_data["href"]
+                    image_type = link_data.get("type", "image/png")
+                    break
+
+            if not href:
+                continue
+
+            # Extract UUID from URL as filename (e.g., /files/dab3b010-d73d-49b9-9f32-13ab61c45c80 -> dab3b010-d73d-49b9-9f32-13ab61c45c80)
+            uuid_match = re.search(r'/files/([a-f0-9-]{36})', href)
+            if uuid_match:
+                name = uuid_match.group(1)
+            else:
+                name = f"screenshot_{idx + 1}"
+
+            try:
+                # Use requests directly with image headers instead of session
+                response = requests.get(href, headers=image_headers, timeout=120)
+                response.raise_for_status()
+
+                # Determine extension from actual response content-type
+                content_type = response.headers.get("content-type", "").split(";")[0].strip()
+                ext_map = {"image/png": ".png", "image/jpeg": ".jpg", "image/gif": ".gif", "image/webp": ".webp"}
+                extension = ext_map.get(content_type, ".webp")  # Default to .webp as most images are served as webp
+
+                filename = f"{name}{extension}"
+                destination = media_dir / filename
+                with destination.open("wb") as f:
+                    f.write(response.content)
+                logger.debug(f"Downloaded screenshot: {filename}")
+            except Exception as e:
+                logger.warning(f"Failed to download screenshot {href}: {str(e)}")
+
+    def _download_logo(self, addon_info: Dict, output_dir: Path) -> Optional[Path]:
+        """Download app logo from addon info.
+
+        Args:
+            addon_info: Addon information from API
+            output_dir: Directory to save the logo
+
+        Returns:
+            Path to downloaded logo or None if not available
+        """
+        if not isinstance(addon_info, dict):
+            return None
+
+        # Extract logo URL from addon_info._embedded.logo._links.image.href
+        # Structure: _embedded.logo._links.image.href or _embedded.logo._links.highDpi.href
+        embedded = addon_info.get("_embedded", {})
+        logo_data = embedded.get("logo", {})
+        logo_links = logo_data.get("_links", {})
+
+        # Try different logo sizes - prefer higher resolution
+        href = None
+        for key in ["highDpi", "image", "self"]:
+            link_data = logo_links.get(key, {})
+            if isinstance(link_data, dict) and link_data.get("href"):
+                href = link_data["href"]
+                break
+
+        if not href:
+            # Try alternate path: _links.logo.href -> fetch asset
+            logo_link = addon_info.get("_links", {}).get("logo", {}).get("href")
+            if logo_link:
+                # This is an asset reference like /rest/2/assets/{uuid}
+                # Convert to direct image URL
+                uuid_match = re.search(r'/assets/([a-f0-9-]{36})', logo_link)
+                if uuid_match:
+                    uuid = uuid_match.group(1)
+                    href = f"https://marketplace.atlassian.com/product-listing/files/{uuid}?width=144&height=144"
+
+        if not href:
+            logger.debug("No logo URL found in addon info")
+            return None
+
+        # Extract UUID from URL for filename
+        uuid_match = re.search(r'/files/([a-f0-9-]{36})', href)
+        if uuid_match:
+            name = uuid_match.group(1)
+        else:
+            name = "logo"
+
+        # Use image-appropriate headers
+        image_headers = {
+            "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        }
+
+        try:
+            response = requests.get(href, headers=image_headers, timeout=60)
+            response.raise_for_status()
+
+            # Determine extension from content-type
+            content_type = response.headers.get("content-type", "").split(";")[0].strip()
+            ext_map = {"image/png": ".png", "image/jpeg": ".jpg", "image/gif": ".gif", "image/webp": ".webp", "image/svg+xml": ".svg"}
+            extension = ext_map.get(content_type, ".webp")
+
+            # Save as logo.{ext} for easy reference
+            filename = f"logo{extension}"
+            destination = output_dir / filename
+            with destination.open("wb") as f:
+                f.write(response.content)
+
+            logger.debug(f"Downloaded logo: {filename} ({len(response.content)} bytes)")
+            return destination
+
+        except Exception as e:
+            logger.warning(f"Failed to download logo {href}: {str(e)}")
+            return None
 
     def download_full_marketplace_page(
         self,
