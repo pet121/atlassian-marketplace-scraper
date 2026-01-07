@@ -17,16 +17,16 @@
 x-common-volumes: &common-volumes
   # Metadata (SQLite database, checkpoints, descriptions)
   # Default: ./data/metadata → Maps to /app/data/metadata in container
-  - ${METADATA_PATH:-./data/metadata}:/app/data/metadata
+  - "${METADATA_PATH:-./data/metadata}:/app/data/metadata"
 
   # Logs directory
   # Default: ./logs → Maps to /app/logs in container
-  - ${LOGS_PATH:-./logs}:/app/logs
+  - "${LOGS_PATH:-./logs}:/app/logs"
 
   # Binaries storage (JAR/OBR files)
   # Default: ./data/binaries → Maps to /app/data/binaries in container
   # For multi-drive setup, see examples below
-  - ${BINARIES_PATH:-./data/binaries}:/app/data/binaries
+  - "${BINARIES_PATH:-./data/binaries}:/app/data/binaries"
 
 services:
   # Main web application
