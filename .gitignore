@@ -35,6 +35,12 @@ ENV/
 *.log
 *.log.*
 
+# Temporary files and drafts
+*.txt
+*.tmp
+*.commit
+commit_message*
+
 # OS
 .DS_Store
 Thumbs.db
