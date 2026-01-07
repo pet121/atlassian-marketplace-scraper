@@ -129,7 +129,8 @@ def register_routes(app):
             description_files = []
             full_page_path = None
             api_overview = None  # Brief description from API
-            
+            documentation_url = None  # Documentation URL from API
+
             if os.path.exists(description_dir):
                 # Check for full page first
                 full_page_dir = os.path.join(description_dir, 'full_page')
@@ -137,15 +138,14 @@ def register_routes(app):
                     full_page_index = os.path.join(full_page_dir, 'index.html')
                     if os.path.exists(full_page_index):
                         full_page_path = 'full_page/index.html'
-                
+
                 # Also list API-based descriptions
                 for file in os.listdir(description_dir):
                     if file.endswith('.html') and file != 'index.html':
                         description_files.append(file)
-                
+
                 # Try to load overview and documentation URL from latest JSON description
                 json_files = [f for f in os.listdir(description_dir) if f.endswith('.json')]
-                documentation_url = None
                 if json_files:
                     # Get latest JSON file
                     latest_json = sorted(json_files)[-1]
@@ -623,7 +623,17 @@ def register_routes(app):
             total_apps = store.get_apps_count()
             total_versions = store.get_total_versions_count()
             downloaded = store.get_downloaded_versions_count()
-            storage = download_mgr.get_storage_stats()
+
+            # Get detailed storage stats (includes binaries, descriptions, and metadata)
+            detailed_storage = download_mgr.get_detailed_storage_stats()
+            storage_total = detailed_storage.get('total', {})
+
+            storage = {
+                'total_bytes': storage_total.get('bytes', 0),
+                'total_mb': storage_total.get('mb', 0),
+                'total_gb': storage_total.get('gb', 0),
+                'file_count': storage_total.get('file_count', 0)
+            }
 
             return jsonify({
                 'success': True,

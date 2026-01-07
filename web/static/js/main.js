@@ -44,9 +44,10 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Refresh stats every 30 seconds on dashboard
+    // Load and refresh stats on dashboard
     if (window.location.pathname === '/') {
-        setInterval(refreshStats, 30000);
+        refreshStats();  // Load immediately on page load
+        setInterval(refreshStats, 30000);  // Then refresh every 30 seconds
     }
 });
 
@@ -74,14 +75,22 @@ function refreshStats() {
                 }
 
                 // Update storage
-                if (versionElements.length > 3) {
+                const storageUsedElement = document.getElementById('storage-used');
+                const storageFilesElement = document.getElementById('storage-files');
+                if (storageUsedElement && stats.storage) {
                     const storageGB = stats.storage.total_gb;
                     const storageMB = stats.storage.total_mb;
                     if (storageGB >= 1.0) {
-                        versionElements[3].textContent = storageGB.toFixed(2) + ' GB';
+                        storageUsedElement.textContent = storageGB.toFixed(2) + ' GB';
                     } else {
-                        versionElements[3].textContent = Math.round(storageMB) + ' MB';
+                        storageUsedElement.textContent = Math.round(storageMB) + ' MB';
                     }
+                }
+
+                // Update file count
+                if (storageFilesElement && stats.storage) {
+                    const fileCount = stats.storage.file_count;
+                    storageFilesElement.textContent = fileCount.toLocaleString() + ' files';
                 }
             }
         })
