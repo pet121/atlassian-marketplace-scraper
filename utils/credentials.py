@@ -22,94 +22,76 @@ def _get_or_create_encryption_key() -> bytes:
     Get or create encryption key for credential encryption.
 
     The key is stored in a file and is machine-specific.
-    This provides basic encryption to prevent plain-text credential storage.
+    This provides strong encryption to prevent plain-text credential storage.
 
     Returns:
         Encryption key as bytes
+
+    Raises:
+        ImportError: If cryptography library is not installed
     """
     try:
         from cryptography.fernet import Fernet
-
-        if os.path.exists(ENCRYPTION_KEY_FILE):
-            # Load existing key
-            with open(ENCRYPTION_KEY_FILE, 'rb') as f:
-                return f.read()
-        else:
-            # Generate new key
-            key = Fernet.generate_key()
-            with open(ENCRYPTION_KEY_FILE, 'wb') as f:
-                f.write(key)
-            logger.info("Generated new encryption key for credentials")
-            return key
     except ImportError:
-        # Fallback: cryptography library not installed
-        # Use a weak XOR-based obfuscation (better than nothing)
-        logger.warning("cryptography library not installed - using basic obfuscation. Install with: pip install cryptography")
-        # Use a machine-specific key based on hostname
-        import socket
-        hostname = socket.gethostname()
-        key = hashlib.sha256(hostname.encode()).digest()
-        return base64.b64encode(key)
+        raise ImportError(
+            "cryptography library is required for credential encryption. "
+            "Install it with: pip install cryptography"
+        )
+
+    if os.path.exists(ENCRYPTION_KEY_FILE):
+        # Load existing key
+        with open(ENCRYPTION_KEY_FILE, 'rb') as f:
+            return f.read()
+    else:
+        # Generate new key
+        key = Fernet.generate_key()
+        with open(ENCRYPTION_KEY_FILE, 'wb') as f:
+            f.write(key)
+        logger.info("Generated new encryption key for credentials")
+        return key
 
 
 def _encrypt_string(plaintext: str) -> str:
     """
-    Encrypt a string.
+    Encrypt a string using Fernet encryption.
 
     Args:
         plaintext: String to encrypt
 
     Returns:
         Base64-encoded encrypted string
+
+    Raises:
+        ImportError: If cryptography library is not installed
     """
-    try:
-        from cryptography.fernet import Fernet
+    from cryptography.fernet import Fernet
 
-        key = _get_or_create_encryption_key()
-        f = Fernet(key)
-        encrypted = f.encrypt(plaintext.encode())
-        return base64.b64encode(encrypted).decode()
-    except ImportError:
-        # Fallback: basic XOR obfuscation
-        key = _get_or_create_encryption_key()
-        key_bytes = base64.b64decode(key)
-
-        result = bytearray()
-        for i, byte in enumerate(plaintext.encode()):
-            result.append(byte ^ key_bytes[i % len(key_bytes)])
-
-        return base64.b64encode(result).decode()
+    key = _get_or_create_encryption_key()
+    f = Fernet(key)
+    encrypted = f.encrypt(plaintext.encode())
+    return base64.b64encode(encrypted).decode()
 
 
 def _decrypt_string(encrypted: str) -> str:
     """
-    Decrypt a string.
+    Decrypt a string using Fernet encryption.
 
     Args:
         encrypted: Base64-encoded encrypted string
 
     Returns:
         Decrypted plaintext string
+
+    Raises:
+        ImportError: If cryptography library is not installed
     """
-    try:
-        from cryptography.fernet import Fernet
+    from cryptography.fernet import Fernet
 
-        key = _get_or_create_encryption_key()
-        f = Fernet(key)
-        encrypted_bytes = base64.b64decode(encrypted.encode())
-        decrypted = f.decrypt(encrypted_bytes)
-        return decrypted.decode()
-    except ImportError:
-        # Fallback: basic XOR deobfuscation
-        key = _get_or_create_encryption_key()
-        key_bytes = base64.b64decode(key)
-
-        encrypted_bytes = base64.b64decode(encrypted.encode())
-        result = bytearray()
-        for i, byte in enumerate(encrypted_bytes):
-            result.append(byte ^ key_bytes[i % len(key_bytes)])
-
-        return result.decode()
+    key = _get_or_create_encryption_key()
+    f = Fernet(key)
+    encrypted_bytes = base64.b64decode(encrypted.encode())
+    decrypted = f.decrypt(encrypted_bytes)
+    return decrypted.decode()
 
 
 def get_credentials() -> Dict[str, str]:

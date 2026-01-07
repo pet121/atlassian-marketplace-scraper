@@ -6,6 +6,12 @@
 .env
 .env.local
 
+# Claude Code documentation (local only)
+CLAUDE.md
+
+# Security analysis (local only)
+SECURITY_ANALYSIS.md
+
 # Python
 __pycache__/
 *.py[cod]

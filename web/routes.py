@@ -57,8 +57,21 @@ def register_routes(app):
             # Get filters from query parameters
             product_filter = request.args.get('product')
             search_query = request.args.get('search', '').strip()
-            page = int(request.args.get('page', 1))
-            per_page = int(request.args.get('per_page', 50))
+
+            # Validate and sanitize pagination parameters
+            try:
+                page = int(request.args.get('page', 1))
+                page = max(1, page)  # Minimum page is 1
+            except (ValueError, TypeError):
+                logger.warning(f"Invalid page parameter: {request.args.get('page')}")
+                page = 1
+
+            try:
+                per_page = int(request.args.get('per_page', 50))
+                per_page = max(1, min(100, per_page))  # Between 1 and 100
+            except (ValueError, TypeError):
+                logger.warning(f"Invalid per_page parameter: {request.args.get('per_page')}")
+                per_page = 50
 
             # Build filters
             filters = {}
