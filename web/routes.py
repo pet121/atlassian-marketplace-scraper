@@ -1418,36 +1418,36 @@ def register_routes(app):
             logger.error(f"Error in search: {str(e)}", exc_info=True)
             return jsonify({'success': False, 'error': str(e)}), 500
 
+    def _simple_text_search(query: str, metadata_store, limit: int = 100) -> List[Dict]:
+        """Simple fallback text search."""
+        query_lower = query.lower().strip()
+        results = []
 
-def _simple_text_search(query: str, metadata_store, limit: int = 100) -> List[Dict]:
-    """Simple fallback text search."""
-    query_lower = query.lower().strip()
-    results = []
-    
-    try:
-        apps = metadata_store.get_all_apps()
-        for app in apps:
-            addon_key = app.get('addon_key', '')
-            app_name = (app.get('name') or '').lower()
-            vendor = (app.get('vendor') or '').lower()
-            
-            if query_lower in app_name or query_lower in vendor or query_lower in addon_key.lower():
-                results.append({
-                    'addon_key': addon_key,
-                    'app_name': app.get('name', 'Unknown'),
-                    'vendor': app.get('vendor', 'N/A'),
-                    'products': app.get('products', []),
-                    'score': 1,
-                    'match_type': 'metadata',
-                    'match_context': f"Matched in app name, vendor, or key"
-                })
-                
-                if len(results) >= limit:
-                    break
-    except Exception as e:
-        logger.error(f"Simple text search failed: {str(e)}")
-    
-    return results
+        try:
+            apps = metadata_store.get_all_apps()
+            for app in apps:
+                addon_key = app.get('addon_key', '')
+                app_name = (app.get('name') or '').lower()
+                vendor = (app.get('vendor') or '').lower()
+
+                if query_lower in app_name or query_lower in vendor or query_lower in addon_key.lower():
+                    results.append({
+                        'addon_key': addon_key,
+                        'app_name': app.get('name', 'Unknown'),
+                        'vendor': app.get('vendor', 'N/A'),
+                        'products': app.get('products', []),
+                        'score': 1,
+                        'match_type': 'metadata',
+                        'match_context': f"Matched in app name, vendor, or key"
+                    })
+
+                    if len(results) >= limit:
+                        break
+        except Exception as e:
+            logger.error(f"Simple text search failed: {str(e)}")
+
+        return results
+
 
     @app.route('/api/tasks/start/build-index', methods=['POST'])
     @requires_auth
@@ -1456,7 +1456,7 @@ def _simple_text_search(query: str, metadata_store, limit: int = 100) -> List[Di
         try:
             task_mgr = get_task_manager()
             task_id = task_mgr.start_build_search_index()
-            
+
             return jsonify({
                 'success': True,
                 'task_id': task_id,
@@ -1477,10 +1477,10 @@ def _simple_text_search(query: str, metadata_store, limit: int = 100) -> List[Di
             if str(web_dir) not in sys.path:
                 sys.path.insert(0, str(web_dir))
             from search_index_whoosh import WhooshSearchIndex
-            
+
             search_index = WhooshSearchIndex()
             search_index.build_index(store)
-            
+
             return jsonify({
                 'success': True,
                 'message': 'Search index rebuilt successfully'

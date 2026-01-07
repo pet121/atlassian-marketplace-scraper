@@ -362,8 +362,8 @@ class DownloadManager:
         
         from pathlib import Path
         import os
-        
-        logger.info("Calculating detailed storage statistics (this may take a while)...")
+
+        logger.debug("Calculating detailed storage statistics (this may take a while)...")
         
         categories = {
             'binaries': {
@@ -539,6 +539,6 @@ class DownloadManager:
         # Update cache
         self._detailed_storage_stats_cache = result
         self._detailed_storage_stats_cache_time = time.time()
-        
-        logger.info("Detailed storage statistics calculated successfully")
+
+        logger.debug("Detailed storage statistics calculated successfully")
         return result

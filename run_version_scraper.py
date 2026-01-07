@@ -36,7 +36,7 @@ def main():
     print()
 
     # Initialize components
-    store = MetadataStore()
+    store = MetadataStore(logger_name='version_scraper')
     scraper = VersionScraper(store=store)
 
     # Check if apps exist

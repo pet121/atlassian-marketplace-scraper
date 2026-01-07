@@ -176,6 +176,21 @@ class TaskManager:
                         # Extract meaningful current action
                         current_action = line_stripped[:100] if len(line_stripped) > 100 else line_stripped
 
+                        # Filter out tqdm progress bars (contains |, █, or [time<time, speed])
+                        # Example: "Downloading: 49%|████▉ | 48/98 [00:20<00:23, 2.15file/s]"
+                        # Should extract only: "Downloading"
+                        if '|' in current_action and ('[' in current_action or '█' in current_action):
+                            # This looks like a tqdm progress bar
+                            # Extract only the text before the first '|' or '%'
+                            # Split by common separators
+                            parts = re.split(r'[|%:]', current_action)
+                            if parts and parts[0].strip():
+                                # Use the descriptive part before the progress bar
+                                current_action = parts[0].strip()
+                            else:
+                                # Skip updating current_action for pure progress bars
+                                current_action = None
+
                         # Try to extract progress from patterns like "817/2290" or "Progress: 50%"
                         progress = 0
 
@@ -194,7 +209,9 @@ class TaskManager:
                                 progress = int(match.group(1))
 
                         with self.lock:
-                            self.tasks[task_id]['current_action'] = current_action
+                            # Only update current_action if it's not None (not a pure progress bar)
+                            if current_action is not None:
+                                self.tasks[task_id]['current_action'] = current_action
                             if progress > 0:
                                 self.tasks[task_id]['progress'] = min(progress, 100)  # Cap at 100%
                             self._save_status()
