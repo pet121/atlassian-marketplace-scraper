@@ -11,7 +11,7 @@ from scraper.filters import filter_by_date, filter_by_hosting
 from models.version import Version
 from utils.logger import get_logger
 
-logger = get_logger('scraper')
+logger = get_logger('version_scraper')
 
 
 class VersionScraper:
@@ -28,7 +28,7 @@ class VersionScraper:
             api_v3: MarketplaceAPIv3 instance (for compatibility)
             store: MetadataStore instance
         """
-        self.api = api or MarketplaceAPI()
+        self.api = api or MarketplaceAPI(logger_name='version_scraper')
         self.store = store or MetadataStore()
         self.api_v3 = api_v3 or MarketplaceAPIv3(metadata_store=self.store)
 

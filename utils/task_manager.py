@@ -5,6 +5,7 @@ import subprocess
 import json
 import threading
 import signal
+import re
 from datetime import datetime
 from typing import Dict, Optional
 from config import settings
@@ -150,53 +151,94 @@ class TaskManager:
                     self.processes[task_id] = process  # Store process for cancellation
                     self._save_status()
                 
-                # Wait for completion
-                stdout, _ = process.communicate()  # stderr is combined with stdout
-                
-                # Extract current action from output
-                if stdout:
-                    stdout_lines = stdout.split('\n')
-                    current_action = 'Running...'
-                    # Look for meaningful lines in output
-                    for line in reversed(stdout_lines[-20:]):  # Check last 20 lines
-                        line_stripped = line.strip()
-                        if line_stripped:
-                            line_lower = line_stripped.lower()
-                            # Update current action based on output
-                            if any(keyword in line_lower for keyword in ['scraping', 'scrape', 'downloading', 'download', 
-                                                                          'processing', 'process', 'saving', 'save', 
-                                                                          'fetching', 'fetch']):
-                                current_action = line_stripped[:100] if len(line_stripped) > 100 else line_stripped
-                                break
-                    
-                    # Update current action before final status
-                    with self.lock:
-                        self.tasks[task_id]['current_action'] = current_action
-                        self._save_status()
+                # Read output in real-time and update status
+                stdout_lines = []
+                update_counter = 0
+
+                # Read output line by line
+                for line in process.stdout:
+                    stdout_lines.append(line)
+                    line_stripped = line.strip()
+
+                    # Print output to console for real-time visibility
+                    if line_stripped:
+                        print(line_stripped)
+
+                    # Update status every 10 lines or on meaningful output
+                    update_counter += 1
+                    if line_stripped and (update_counter >= 10 or
+                                          any(keyword in line_stripped.lower() for keyword in
+                                              ['scraping', 'scrape', 'downloading', 'download',
+                                               'processing', 'process', 'saving', 'save',
+                                               'fetching', 'fetch', 'completed', 'starting'])):
+                        update_counter = 0
+
+                        # Extract meaningful current action
+                        current_action = line_stripped[:100] if len(line_stripped) > 100 else line_stripped
+
+                        # Try to extract progress from patterns like "817/2290" or "Progress: 50%"
+                        progress = 0
+
+                        # Pattern 1: "817/2290" format
+                        match = re.search(r'(\d+)/(\d+)', line_stripped)
+                        if match:
+                            current = int(match.group(1))
+                            total = int(match.group(2))
+                            if total > 0:
+                                progress = int((current / total) * 100)
+
+                        # Pattern 2: "Progress: 50%" or "50%" format
+                        if progress == 0:
+                            match = re.search(r'(\d+)%', line_stripped)
+                            if match:
+                                progress = int(match.group(1))
+
+                        with self.lock:
+                            self.tasks[task_id]['current_action'] = current_action
+                            if progress > 0:
+                                self.tasks[task_id]['progress'] = min(progress, 100)  # Cap at 100%
+                            self._save_status()
+
+                # Wait for process to complete
+                process.wait()
+                stdout = ''.join(stdout_lines)
                 
                 # Update final status
                 with self.lock:
                     if process.returncode == 0:
                         self.tasks[task_id]['status'] = 'completed'
                         self.tasks[task_id]['message'] = 'Completed successfully'
+                        # Look for completion message in last output lines
+                        completion_message = 'Task completed successfully'
+                        if stdout:
+                            stdout_lines_list = stdout.split('\n')
+                            # Look for meaningful completion messages
+                            for line in reversed(stdout_lines_list[-20:]):
+                                line_stripped = line.strip()
+                                if line_stripped and any(keyword in line_stripped.lower() for keyword in
+                                                        ['completed successfully', 'finished', 'done', '[ok]']):
+                                    completion_message = line_stripped[:100]
+                                    break
+                        self.tasks[task_id]['current_action'] = completion_message
                     else:
                         self.tasks[task_id]['status'] = 'failed'
                         self.tasks[task_id]['message'] = f'Failed with code {process.returncode}'
-                        
+
                         # Save full output (last 3000 chars) - includes both stdout and stderr
                         error_output = ""
                         if stdout:
                             error_output = stdout[-3000:] if len(stdout) > 3000 else stdout
-                        
+
                         if error_output:
                             self.tasks[task_id]['error'] = error_output
                             # Try to extract key error message
                             error_lines = error_output.split('\n')
+                            error_message_found = False
                             for line in reversed(error_lines):
                                 line_stripped = line.strip()
                                 if line_stripped and (
-                                    'error' in line_stripped.lower() or 
-                                    '❌' in line_stripped or 
+                                    'error' in line_stripped.lower() or
+                                    '❌' in line_stripped or
                                     'failed' in line_stripped.lower() or
                                     'exception' in line_stripped.lower() or
                                     'traceback' in line_stripped.lower()
@@ -204,9 +246,16 @@ class TaskManager:
                                     # Extract meaningful error message
                                     if len(line_stripped) > 200:
                                         self.tasks[task_id]['message'] = line_stripped[:197] + '...'
+                                        self.tasks[task_id]['current_action'] = line_stripped[:197] + '...'
                                     else:
                                         self.tasks[task_id]['message'] = line_stripped
+                                        self.tasks[task_id]['current_action'] = line_stripped
+                                    error_message_found = True
                                     break
+
+                            # If no specific error found, use generic failed message
+                            if not error_message_found:
+                                self.tasks[task_id]['current_action'] = f'Task failed with exit code {process.returncode}'
                     
                     # Save full output for debugging (last 2000 chars)
                     if stdout:

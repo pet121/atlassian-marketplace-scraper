@@ -539,6 +539,28 @@
 
 {% block extra_js %}
 <script>
+// CSRF-aware fetch wrapper
+function fetchWithCSRF(url, options = {}) {
+    // Always include credentials for HTTP Basic Auth
+    const headers = options.headers || {};
+
+    // For non-GET requests, add CSRF token and X-Requested-With header
+    if (options.method && options.method.toUpperCase() !== 'GET') {
+        // Get CSRF token from meta tag
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+        if (csrfToken) {
+            headers['X-CSRFToken'] = csrfToken;
+        }
+        headers['X-Requested-With'] = 'XMLHttpRequest';
+    }
+
+    return fetch(url, {
+        ...options,
+        headers: headers,
+        credentials: 'include'  // Include HTTP Basic Auth credentials
+    });
+}
+
 // Task management functions
 function startScrapeApps(resume) {
     const btn = document.getElementById('btn-scrape-apps');
@@ -1257,9 +1279,9 @@ function renderTasksTable(container, tasks, loadLogs = false) {
         return;
     }
     
-    let html = '<div class="table-responsive"><table class="table table-hover table-sm table-resizable" style="table-layout: fixed; width: 100%; min-width: 1300px;">';
-    html += '<thead><tr><th style="min-width: 200px; width: 15%;">Task ID</th><th style="min-width: 150px; width: 12%;">Script</th><th style="min-width: 80px; width: 8%;">Status</th><th style="min-width: 200px; width: 20%;">Current Action</th><th style="min-width: 300px; width: 25%;">Last Log Line</th><th style="min-width: 120px; width: 10%;">Progress</th><th style="min-width: 150px; width: 12%;">Started</th><th style="min-width: 100px; width: 8%;">Actions</th></tr></thead><tbody>';
-    
+    let html = '<div class="table-responsive"><table class="table table-hover table-sm table-resizable" style="table-layout: fixed; width: 100%; min-width: 1100px;">';
+    html += '<thead><tr><th style="min-width: 180px; width: 18%;">Task ID</th><th style="min-width: 140px; width: 14%;">Script</th><th style="min-width: 90px; width: 9%;">Status</th><th style="min-width: 350px; width: 40%;">Current Action</th><th style="min-width: 110px; width: 11%;">Progress</th><th style="min-width: 140px; width: 14%;">Started</th><th style="min-width: 90px; width: 9%;">Actions</th></tr></thead><tbody>';
+
     tasks.forEach(([taskId, task]) => {
         const statusBadge = task.status === 'completed' ? 'bg-success' :
                            task.status === 'failed' ? 'bg-danger' :
@@ -1268,33 +1290,12 @@ function renderTasksTable(container, tasks, loadLogs = false) {
         const progress = task.progress || 0;
         const currentAction = task.current_action || task.message || 'N/A';
         const started = task.started_at ? new Date(task.started_at).toLocaleString() : 'N/A';
-        
-        // Get cached log line or show placeholder
-        const cachedLog = taskLogCache[taskId];
-        let logLine = 'N/A';
-        let logTitle = '';
-        
-        if (cachedLog && cachedLog.log_line) {
-            // Show more text - up to 500 characters, with full text in title
-            logLine = escapeHtml(cachedLog.log_line).substring(0, 500);
-            if (cachedLog.log_line.length > 500) {
-                logLine += '...';
-            }
-            logTitle = escapeHtml(cachedLog.log_line);
-        } else if (task.status === 'running') {
-            logLine = '<em class="text-muted">Loading log...</em>';
-            logTitle = 'Log is being loaded...';
-        } else {
-            logLine = '<em class="text-muted">No log available</em>';
-            logTitle = 'No log file found or log file is empty';
-        }
-        
+
         html += `<tr>
             <td><code>${taskId.substring(0, 20)}...</code></td>
             <td>${task.script || 'N/A'}</td>
             <td><span class="badge ${statusBadge}">${task.status || 'unknown'}</span></td>
-            <td><small class="text-muted">${escapeHtml(currentAction)}</small></td>
-            <td><small class="text-muted" id="log-${taskId}" style="font-family: monospace; font-size: 0.85em; white-space: normal; word-wrap: break-word; max-width: 1000px; display: block;" title="${logTitle}">${logLine}</small></td>
+            <td><small class="text-muted" style="font-family: monospace; font-size: 0.85em; white-space: normal; word-wrap: break-word;" title="${escapeHtml(currentAction)}">${escapeHtml(currentAction)}</small></td>
             <td>
                 <div class="progress" style="height: 20px; width: 100px;">
                     <div class="progress-bar ${task.status === 'running' ? 'progress-bar-striped progress-bar-animated' : ''}" 
@@ -1523,18 +1524,12 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(r => r.json())
         .then(data => {
             if (data.success && data.tasks) {
-                const runningTasks = Object.entries(data.tasks)
-                    .filter(([_, task]) => task.status === 'running')
-                    .map(([id]) => id);
-                
-                if (runningTasks.length > 0) {
-                    loadTaskLogs(runningTasks);
-                    // Update last update time
-                    const now = new Date();
-                    const updateEl = document.getElementById('last-update-time');
-                    if (updateEl) {
-                        updateEl.textContent = `Last update: ${now.toLocaleTimeString()}`;
-                    }
+                // Note: Log loading removed - we now use real-time current_action from task_manager
+                // Update last update time
+                const now = new Date();
+                const updateEl = document.getElementById('last-update-time');
+                if (updateEl) {
+                    updateEl.textContent = `Last update: ${now.toLocaleTimeString()}`;
                 }
             }
         })
@@ -1616,10 +1611,8 @@ function refreshTaskStatusFromData(tasks) {
         updateEl.textContent = `Last update: ${now.toLocaleTimeString()}`;
     }
     
-    // Load logs for running tasks
-    if (tasksByStatus.running.length > 0) {
-        loadTaskLogs(tasksByStatus.running.map(([id]) => id));
-    }
+    // Note: Log loading removed - we now use real-time current_action from task_manager
+    // The "Current Action" field is updated in real-time as tasks run
     
     // Restore scroll position
     requestAnimationFrame(() => {

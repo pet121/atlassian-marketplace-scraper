@@ -118,9 +118,15 @@ def setup_logging():
     # Create logs directory if it doesn't exist
     os.makedirs(settings.LOGS_DIR, exist_ok=True)
 
-    # Scraper log with rotation
+    # Scraper log with rotation (for app scraper)
     scraper_handler = _get_rotating_handler(
         os.path.join(settings.LOGS_DIR, 'scraper.log'),
+        level=logging.INFO
+    )
+
+    # Version scraper log with rotation (separate from app scraper)
+    version_scraper_handler = _get_rotating_handler(
+        os.path.join(settings.LOGS_DIR, 'version_scraper.log'),
         level=logging.INFO
     )
 
@@ -152,6 +158,11 @@ def setup_logging():
     scraper_logger.setLevel(getattr(logging, settings.LOG_LEVEL))
     scraper_logger.propagate = False
     scraper_logger.addHandler(scraper_handler)
+
+    version_scraper_logger = logging.getLogger('version_scraper')
+    version_scraper_logger.setLevel(getattr(logging, settings.LOG_LEVEL))
+    version_scraper_logger.propagate = False
+    version_scraper_logger.addHandler(version_scraper_handler)
 
     download_logger = logging.getLogger('download')
     download_logger.setLevel(getattr(logging, settings.LOG_LEVEL))

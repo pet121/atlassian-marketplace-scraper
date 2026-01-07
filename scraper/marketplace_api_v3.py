@@ -6,7 +6,7 @@ from config import settings
 from utils.logger import get_logger
 from utils.credentials import get_credentials_rotator, CredentialsRotator
 
-logger = get_logger('scraper')
+logger = get_logger('version_scraper')
 
 
 class MarketplaceAPIv3:

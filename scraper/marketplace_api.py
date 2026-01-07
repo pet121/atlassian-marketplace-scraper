@@ -8,13 +8,11 @@ from utils.rate_limiter import RateLimiter
 from utils.logger import get_logger
 from utils.credentials import get_credentials_rotator, CredentialsRotator
 
-logger = get_logger('scraper')
-
 
 class MarketplaceAPI:
     """Client for interacting with Atlassian Marketplace REST API."""
 
-    def __init__(self, username=None, api_token=None, use_rotation=False, rotator: Optional[CredentialsRotator] = None):
+    def __init__(self, username=None, api_token=None, use_rotation=False, rotator: Optional[CredentialsRotator] = None, logger_name='scraper'):
         """
         Initialize the Marketplace API client.
 
@@ -23,7 +21,9 @@ class MarketplaceAPI:
             api_token: API token from Atlassian - if provided, uses this token
             use_rotation: If True, uses credential rotation for parallel requests
             rotator: Optional CredentialsRotator instance (if None and use_rotation=True, uses global rotator)
+            logger_name: Name of the logger to use (default: 'scraper')
         """
+        self.logger = get_logger(logger_name)
         self.use_rotation = use_rotation
         self.rotator = rotator or (get_credentials_rotator() if use_rotation else None)
         
@@ -59,7 +59,7 @@ class MarketplaceAPI:
                 self.username = creds.get('username', '')
                 self.api_token = creds.get('api_token', '')
                 self.session.auth = (self.username, self.api_token)
-                logger.debug(f"Rotated to credentials for: {self.username}")
+                self.logger.debug(f"Rotated to credentials for: {self.username}")
 
     def _make_request(self, url, params=None, retry_count=0, rotate_on_429=True):
         """
@@ -96,7 +96,7 @@ class MarketplaceAPI:
 
             # Rotate credentials on 429 if using rotation
             if status_code == 429 and rotate_on_429 and self.use_rotation and self.rotator:
-                logger.warning(f"Rate limited (429), rotating credentials...")
+                self.logger.warning(f"Rate limited (429), rotating credentials...")
                 self.rotate_credentials()
                 if retry_count < settings.MAX_RETRY_ATTEMPTS:
                     wait_time = 2 ** retry_count
@@ -107,21 +107,21 @@ class MarketplaceAPI:
                 # Retry on rate limit or server errors
                 if retry_count < settings.MAX_RETRY_ATTEMPTS:
                     wait_time = 2 ** retry_count  # Exponential backoff
-                    logger.warning(f"HTTP {status_code} error, retrying in {wait_time}s... (attempt {retry_count + 1}/{settings.MAX_RETRY_ATTEMPTS})")
+                    self.logger.warning(f"HTTP {status_code} error, retrying in {wait_time}s... (attempt {retry_count + 1}/{settings.MAX_RETRY_ATTEMPTS})")
                     time.sleep(wait_time)
                     return self._make_request(url, params, retry_count + 1, rotate_on_429)
 
-            logger.error(f"HTTP error for {url}: {str(e)}")
+            self.logger.error(f"HTTP error for {url}: {str(e)}")
             raise
 
         except requests.exceptions.RequestException as e:
             if retry_count < settings.MAX_RETRY_ATTEMPTS:
                 wait_time = 2 ** retry_count
-                logger.warning(f"Request error, retrying in {wait_time}s... (attempt {retry_count + 1}/{settings.MAX_RETRY_ATTEMPTS})")
+                self.logger.warning(f"Request error, retrying in {wait_time}s... (attempt {retry_count + 1}/{settings.MAX_RETRY_ATTEMPTS})")
                 time.sleep(wait_time)
                 return self._make_request(url, params, retry_count + 1, rotate_on_429)
 
-            logger.error(f"Request failed for {url}: {str(e)}")
+            self.logger.error(f"Request failed for {url}: {str(e)}")
             raise
 
     def search_apps(self, hosting='server', application=None, offset=0, limit=50, cost=None):
@@ -151,13 +151,13 @@ class MarketplaceAPI:
         if cost:
             params['cost'] = cost
 
-        logger.info(f"Searching apps: hosting={hosting}, application={application}, offset={offset}, limit={limit}")
+        self.logger.info(f"Searching apps: hosting={hosting}, application={application}, offset={offset}, limit={limit}")
 
         try:
             data = self._make_request(url, params)
             return data
         except Exception as e:
-            logger.error(f"Failed to search apps: {str(e)}")
+            self.logger.error(f"Failed to search apps: {str(e)}")
             return {'_embedded': {'addons': []}}
 
     def get_app_details(self, addon_key, with_version=True):
@@ -177,12 +177,12 @@ class MarketplaceAPI:
         if with_version:
             params['withVersion'] = 'true'
 
-        logger.debug(f"Fetching app details for: {addon_key}")
+        self.logger.debug(f"Fetching app details for: {addon_key}")
 
         try:
             return self._make_request(url, params)
         except Exception as e:
-            logger.error(f"Failed to get app details for {addon_key}: {str(e)}")
+            self.logger.error(f"Failed to get app details for {addon_key}: {str(e)}")
             return None
 
     def get_app_versions(self, addon_key, offset=0, limit=50):
@@ -203,12 +203,12 @@ class MarketplaceAPI:
             'limit': min(limit, 100)
         }
 
-        logger.debug(f"Fetching versions for {addon_key}: offset={offset}, limit={limit}")
+        self.logger.debug(f"Fetching versions for {addon_key}: offset={offset}, limit={limit}")
 
         try:
             return self._make_request(url, params)
         except Exception as e:
-            logger.error(f"Failed to get versions for {addon_key}: {str(e)}")
+            self.logger.error(f"Failed to get versions for {addon_key}: {str(e)}")
             return {'_embedded': {'versions': []}}
 
     def get_all_app_versions(self, addon_key):
@@ -244,7 +244,7 @@ class MarketplaceAPI:
 
             offset += len(versions)
 
-        logger.info(f"Retrieved {len(all_versions)} total versions for {addon_key}")
+        self.logger.info(f"Retrieved {len(all_versions)} total versions for {addon_key}")
         return all_versions
 
     def get_download_url(self, addon_key, version_id=None, build_number=None):
@@ -267,7 +267,7 @@ class MarketplaceAPI:
         if build_number:
             return f"{self.download_base_url}/download/apps/{addon_key}/version/{build_number}"
 
-        logger.warning(f"Cannot construct download URL for {addon_key}: no version_id or build_number provided")
+        self.logger.warning(f"Cannot construct download URL for {addon_key}: no version_id or build_number provided")
         return None
 
     def download_binary(self, url, save_path, progress_callback=None):
@@ -300,9 +300,9 @@ class MarketplaceAPI:
                         if progress_callback:
                             progress_callback(downloaded, total_size)
 
-            logger.info(f"Downloaded {downloaded} bytes to {save_path}")
+            self.logger.info(f"Downloaded {downloaded} bytes to {save_path}")
             return True
 
         except Exception as e:
-            logger.error(f"Failed to download from {url}: {str(e)}")
+            self.logger.error(f"Failed to download from {url}: {str(e)}")
             return False
