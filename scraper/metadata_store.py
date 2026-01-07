@@ -14,8 +14,14 @@ logger = get_logger('scraper')
 class MetadataStoreJSON:
     """Handles storage and retrieval of app and version metadata."""
 
-    def __init__(self):
-        """Initialize metadata store."""
+    def __init__(self, logger_name: str = 'scraper'):
+        """
+        Initialize metadata store.
+
+        Args:
+            logger_name: Name of the logger to use (default: 'scraper')
+        """
+        self.logger = get_logger(logger_name)
         self.apps_file = settings.APPS_JSON_PATH
         self.versions_dir = settings.VERSIONS_DIR
 

@@ -9,20 +9,20 @@ from models.app import App
 from models.version import Version
 from utils.logger import get_logger
 
-logger = get_logger('scraper')
-
 
 class MetadataStoreSQLite:
     """Handles storage and retrieval of app and version metadata using SQLite."""
 
-    def __init__(self, db_path: Optional[str] = None):
+    def __init__(self, db_path: Optional[str] = None, logger_name: str = 'scraper'):
         """
         Initialize metadata store with SQLite backend.
 
         Args:
             db_path: Optional path to database file (defaults to settings.DATABASE_PATH)
+            logger_name: Name of the logger to use (default: 'scraper')
         """
         self.db_path = db_path or settings.DATABASE_PATH
+        self.logger = get_logger(logger_name)
         self._init_db()
 
     def _init_db(self):
@@ -81,7 +81,7 @@ class MetadataStoreSQLite:
             # Migration: Add compatibility column if it doesn't exist
             try:
                 conn.execute("ALTER TABLE versions ADD COLUMN compatibility TEXT")
-                logger.debug("Added compatibility column to versions table")
+                self.logger.debug("Added compatibility column to versions table")
             except sqlite3.OperationalError:
                 # Column already exists, ignore
                 pass
@@ -102,10 +102,10 @@ class MetadataStoreSQLite:
             self._create_indexes(conn)
 
             conn.commit()
-            logger.debug(f"Database initialized at {self.db_path}")
+            self.logger.debug(f"Database initialized at {self.db_path}")
 
         except sqlite3.Error as e:
-            logger.error(f"Error initializing database: {str(e)}")
+            self.logger.error(f"Error initializing database: {str(e)}")
             raise
         finally:
             conn.close()
@@ -133,7 +133,7 @@ class MetadataStoreSQLite:
             try:
                 conn.execute(index_sql)
             except sqlite3.Error as e:
-                logger.warning(f"Error creating index: {str(e)}")
+                self.logger.warning(f"Error creating index: {str(e)}")
 
     def _get_connection(self):
         """
@@ -183,11 +183,11 @@ class MetadataStoreSQLite:
                 app.scraped_at
             ))
             conn.commit()
-            logger.debug(f"Saved app: {app.addon_key}")
+            self.logger.debug(f"Saved app: {app.addon_key}")
 
         except sqlite3.Error as e:
             conn.rollback()
-            logger.error(f"Error saving app {app.addon_key}: {str(e)}")
+            self.logger.error(f"Error saving app {app.addon_key}: {str(e)}")
             raise
         finally:
             conn.close()
@@ -231,11 +231,11 @@ class MetadataStoreSQLite:
                 ))
 
             conn.commit()
-            logger.info(f"Saved batch of {len(apps)} apps")
+            self.logger.info(f"Saved batch of {len(apps)} apps")
 
         except sqlite3.Error as e:
             conn.rollback()
-            logger.error(f"Batch save failed: {str(e)}")
+            self.logger.error(f"Batch save failed: {str(e)}")
             raise
         finally:
             conn.close()
@@ -309,7 +309,7 @@ class MetadataStoreSQLite:
             return apps
 
         except sqlite3.Error as e:
-            logger.error(f"Error getting apps: {str(e)}")
+            self.logger.error(f"Error getting apps: {str(e)}")
             return []
         finally:
             conn.close()
@@ -348,7 +348,7 @@ class MetadataStoreSQLite:
             return app_dict
 
         except sqlite3.Error as e:
-            logger.error(f"Error getting app {addon_key}: {str(e)}")
+            self.logger.error(f"Error getting app {addon_key}: {str(e)}")
             return None
         finally:
             conn.close()
@@ -368,7 +368,7 @@ class MetadataStoreSQLite:
             cursor = conn.execute("SELECT id FROM apps WHERE addon_key = ?", (addon_key,))
             row = cursor.fetchone()
             if not row:
-                logger.error(f"App not found: {addon_key}")
+                self.logger.error(f"App not found: {addon_key}")
                 return
 
             app_id = row[0]
@@ -415,11 +415,11 @@ class MetadataStoreSQLite:
             """, (len(versions), addon_key))
 
             conn.commit()
-            logger.debug(f"Saved {len(versions)} versions for {addon_key}")
+            self.logger.debug(f"Saved {len(versions)} versions for {addon_key}")
 
         except sqlite3.Error as e:
             conn.rollback()
-            logger.error(f"Error saving versions for {addon_key}: {str(e)}")
+            self.logger.error(f"Error saving versions for {addon_key}: {str(e)}")
             raise
         finally:
             conn.close()
@@ -460,7 +460,7 @@ class MetadataStoreSQLite:
             return versions
 
         except sqlite3.Error as e:
-            logger.error(f"Error getting versions for {addon_key}: {str(e)}")
+            self.logger.error(f"Error getting versions for {addon_key}: {str(e)}")
             return []
         finally:
             conn.close()
@@ -497,11 +497,11 @@ class MetadataStoreSQLite:
                 """, (1 if downloaded else 0, addon_key, str(version_id)))
 
             conn.commit()
-            logger.debug(f"Updated version {addon_key}:{version_id} downloaded={downloaded}")
+            self.logger.debug(f"Updated version {addon_key}:{version_id} downloaded={downloaded}")
 
         except sqlite3.Error as e:
             conn.rollback()
-            logger.error(f"Error updating version status: {str(e)}")
+            self.logger.error(f"Error updating version status: {str(e)}")
             raise
         finally:
             conn.close()
@@ -546,7 +546,7 @@ class MetadataStoreSQLite:
             cursor = conn.execute(sql, params)
             return cursor.fetchone()[0]
         except sqlite3.Error as e:
-            logger.error(f"Error getting apps count: {str(e)}")
+            self.logger.error(f"Error getting apps count: {str(e)}")
             return 0
         finally:
             conn.close()
@@ -559,7 +559,7 @@ class MetadataStoreSQLite:
             cursor = conn.execute("SELECT COUNT(*) FROM versions")
             return cursor.fetchone()[0]
         except sqlite3.Error as e:
-            logger.error(f"Error getting total versions count: {str(e)}")
+            self.logger.error(f"Error getting total versions count: {str(e)}")
             return 0
         finally:
             conn.close()
@@ -572,7 +572,7 @@ class MetadataStoreSQLite:
             cursor = conn.execute("SELECT COUNT(*) FROM versions WHERE downloaded = 1")
             return cursor.fetchone()[0]
         except sqlite3.Error as e:
-            logger.error(f"Error getting downloaded versions count: {str(e)}")
+            self.logger.error(f"Error getting downloaded versions count: {str(e)}")
             return 0
         finally:
             conn.close()
@@ -612,11 +612,11 @@ class MetadataStoreSQLite:
                 VALUES (?, ?, ?)
             """, (product_id, build_number, version_number))
             conn.commit()
-            logger.debug(f"Saved parent version: {product_id} {build_number} -> {version_number}")
+            self.logger.debug(f"Saved parent version: {product_id} {build_number} -> {version_number}")
 
         except sqlite3.Error as e:
             conn.rollback()
-            logger.error(f"Error saving parent software version: {str(e)}")
+            self.logger.error(f"Error saving parent software version: {str(e)}")
         finally:
             conn.close()
 
@@ -645,11 +645,11 @@ class MetadataStoreSQLite:
                     """, (product_id, build_number, version_number))
 
             conn.commit()
-            logger.info(f"Saved batch of {len(versions)} parent versions for {product_id}")
+            self.logger.info(f"Saved batch of {len(versions)} parent versions for {product_id}")
 
         except sqlite3.Error as e:
             conn.rollback()
-            logger.error(f"Error saving parent software versions batch: {str(e)}")
+            self.logger.error(f"Error saving parent software versions batch: {str(e)}")
         finally:
             conn.close()
 
@@ -676,7 +676,7 @@ class MetadataStoreSQLite:
             return row[0] if row else None
 
         except sqlite3.Error as e:
-            logger.error(f"Error getting parent software version: {str(e)}")
+            self.logger.error(f"Error getting parent software version: {str(e)}")
             return None
         finally:
             conn.close()

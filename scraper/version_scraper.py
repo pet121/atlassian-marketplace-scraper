@@ -29,7 +29,7 @@ class VersionScraper:
             store: MetadataStore instance
         """
         self.api = api or MarketplaceAPI(logger_name='version_scraper')
-        self.store = store or MetadataStore()
+        self.store = store or MetadataStore(logger_name='version_scraper')
         self.api_v3 = api_v3 or MarketplaceAPIv3(metadata_store=self.store)
 
     def scrape_all_app_versions(self, filter_date: bool = True,
