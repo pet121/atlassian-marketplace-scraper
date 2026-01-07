@@ -18,15 +18,23 @@ def get_env_file_path() -> str:
 def read_env_settings() -> Dict[str, str]:
     """
     Read settings from .env file.
-    
+
     Returns:
         Dictionary of setting names and values
     """
     env_path = get_env_file_path()
     settings_dict = {}
-    
+
     if not os.path.exists(env_path):
-        logger.warning(f".env file not found at {env_path}")
+        # Only warn if decouple can't find it either (avoid false warnings in Docker)
+        try:
+            from decouple import config
+            # Test if decouple can load config from any location
+            config('LOG_LEVEL', default='INFO')
+            # If we get here, decouple found a config file somewhere
+            logger.debug(f".env file not at {env_path}, but decouple found config elsewhere")
+        except Exception:
+            logger.warning(f".env file not found at {env_path}")
         return settings_dict
     
     try:

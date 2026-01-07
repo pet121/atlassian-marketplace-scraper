@@ -147,18 +147,20 @@ def setup_logging():
     root_logger = logging.getLogger()
     root_logger.setLevel(getattr(logging, settings.LOG_LEVEL))
 
-    # Add handlers
-    root_logger.addHandler(scraper_handler)
-
-    # Configure specific loggers
+    # Configure specific loggers (do NOT add handlers to root to avoid duplication)
     scraper_logger = logging.getLogger('scraper')
+    scraper_logger.setLevel(getattr(logging, settings.LOG_LEVEL))
+    scraper_logger.propagate = False
     scraper_logger.addHandler(scraper_handler)
 
     download_logger = logging.getLogger('download')
+    download_logger.setLevel(getattr(logging, settings.LOG_LEVEL))
+    download_logger.propagate = False
     download_logger.addHandler(download_handler)
     download_logger.addHandler(failed_handler)
-    
+
     description_logger = logging.getLogger('description_downloader')
+    description_logger.setLevel(getattr(logging, settings.LOG_LEVEL))
     description_logger.propagate = False
     description_logger.addHandler(description_handler)
     
@@ -172,7 +174,10 @@ def setup_logging():
     error_logger.propagate = False
     error_logger.addHandler(error_handler)
     error_logger.setLevel(logging.ERROR)
-    
+
+    # Reduce Flask/Werkzeug HTTP request noise (only log warnings and errors)
+    logging.getLogger('werkzeug').setLevel(logging.WARNING)
+
     # Set up exception hook to log all unhandled exceptions
     import sys
     def exception_handler(exc_type, exc_value, exc_traceback):
@@ -181,12 +186,12 @@ def setup_logging():
             # Allow KeyboardInterrupt to work normally
             sys.__excepthook__(exc_type, exc_value, exc_traceback)
             return
-        
+
         error_logger.error(
             "Unhandled exception",
             exc_info=(exc_type, exc_value, exc_traceback)
         )
-    
+
     sys.excepthook = exception_handler
 
     return root_logger

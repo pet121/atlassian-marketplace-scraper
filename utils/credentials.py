@@ -154,14 +154,14 @@ def get_credentials() -> Dict[str, str]:
 
     # Fallback to .env if credentials are empty
     if not credentials.get('username') or not credentials.get('api_token'):
-        logger.info("Credentials empty in .credentials.json, checking .env file")
+        logger.debug("Credentials empty in .credentials.json, checking .env file")
         try:
             from decouple import config
             env_username = config('MARKETPLACE_USERNAME', default='')
             env_token = config('MARKETPLACE_API_TOKEN', default='')
 
             if env_username and env_token:
-                logger.info("Using credentials from .env file")
+                logger.debug("Using credentials from .env file")
                 credentials = {
                     'username': env_username,
                     'api_token': env_token
@@ -225,14 +225,14 @@ def get_all_credentials() -> List[Dict[str, str]]:
 
     # Fallback to .env if no accounts found
     if not accounts:
-        logger.info("No credentials in .credentials.json, checking .env file")
+        logger.debug("No credentials in .credentials.json, checking .env file")
         try:
             from decouple import config
             env_username = config('MARKETPLACE_USERNAME', default='')
             env_token = config('MARKETPLACE_API_TOKEN', default='')
 
             if env_username and env_token:
-                logger.info("Using credentials from .env file")
+                logger.debug("Using credentials from .env file")
                 accounts = [{
                     'username': env_username,
                     'api_token': env_token
