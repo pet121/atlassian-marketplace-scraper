@@ -201,7 +201,7 @@ def register_routes(app):
                 return render_template('error.html', error="Invalid path"), 400
 
             # Only allow safe file extensions for assets
-            allowed_extensions = ('.css', '.js', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.woff', '.woff2', '.ttf', '.eot', '.ico')
+            allowed_extensions = ('.css', '.js', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.avif', '.woff', '.woff2', '.ttf', '.eot', '.ico')
             if not any(asset_path.lower().endswith(ext) for ext in allowed_extensions):
                 return render_template('error.html', error="File type not allowed"), 400
 
@@ -227,6 +227,27 @@ def register_routes(app):
                 return render_template('error.html', error="Access denied"), 403
 
             if os.path.exists(asset_file) and os.path.isfile(asset_file):
+                # Determine mimetype from extension
+                ext = os.path.splitext(asset_file)[1].lower()
+                mime_types = {
+                    '.webp': 'image/webp',
+                    '.avif': 'image/avif',
+                    '.png': 'image/png',
+                    '.jpg': 'image/jpeg',
+                    '.jpeg': 'image/jpeg',
+                    '.gif': 'image/gif',
+                    '.svg': 'image/svg+xml',
+                    '.css': 'text/css',
+                    '.js': 'application/javascript',
+                    '.woff': 'font/woff',
+                    '.woff2': 'font/woff2',
+                    '.ttf': 'font/ttf',
+                    '.eot': 'application/vnd.ms-fontobject',
+                    '.ico': 'image/x-icon',
+                }
+                mimetype = mime_types.get(ext)
+                if mimetype:
+                    return send_file(asset_file, mimetype=mimetype)
                 return send_file(asset_file)
             else:
                 return render_template('error.html', error="Asset not found"), 404
@@ -415,14 +436,21 @@ def register_routes(app):
                 
                 # Fix asset paths to use Flask routes
                 # Replace local asset paths with Flask routes
+                # Handle ./assets/ paths (strip the ./ prefix)
+                html_content = re.sub(
+                    r'(src|href)=["\']\./assets/([^"\']+)["\']',
+                    lambda m: f'{m.group(1)}="/apps/{addon_key}/description/assets/{m.group(2)}"',
+                    html_content
+                )
+                # Handle assets/ paths (no ./ prefix)
                 html_content = re.sub(
                     r'(src|href)=["\']assets/([^"\']+)["\']',
                     lambda m: f'{m.group(1)}="/apps/{addon_key}/description/assets/{m.group(2)}"',
                     html_content
                 )
-                # Also handle relative paths
+                # Handle other relative paths (but not ones we already processed)
                 html_content = re.sub(
-                    r'(src|href)=["\'](?!https?://|/|#|javascript:|data:)([^"\']+)["\']',
+                    r'(src|href)=["\'](?!https?://|/|#|javascript:|data:|\./|assets/)([^"\']+)["\']',
                     lambda m: f'{m.group(1)}="/apps/{addon_key}/description/assets/{m.group(2)}"',
                     html_content
                 )

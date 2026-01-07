@@ -117,8 +117,25 @@ class _Saver:
             return abs_url
         if abs_url in self._downloaded:
             return self._downloaded[abs_url]
+
+        # Check if this is an image URL that needs special headers
+        # product-listing/files/ URLs require browser-like Accept headers
+        is_image_url = (
+            'product-listing/files/' in abs_url or
+            subfolder == 'img' or
+            any(abs_url.lower().endswith(ext) for ext in ('.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'))
+        )
+
         try:
-            resp = self.session.get(abs_url, timeout=self.timeout)
+            if is_image_url:
+                # Use image-appropriate headers (session may have Accept: application/json)
+                image_headers = {
+                    "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                }
+                resp = requests.get(abs_url, headers=image_headers, timeout=self.timeout)
+            else:
+                resp = self.session.get(abs_url, timeout=self.timeout)
             resp.raise_for_status()
         except Exception as e:
             logger.debug(f"Не удалось скачать ресурс {abs_url}: {e}")
@@ -266,6 +283,16 @@ class _Saver:
                     )) {
                         return originalFetch.apply(this, args);
                     }
+                    // Allow YouTube, Google Video, and related media domains
+                    if (url && (
+                        url.includes('youtube.com') ||
+                        url.includes('youtu.be') ||
+                        url.includes('ytimg.com') ||
+                        url.includes('googlevideo.com') ||
+                        url.includes('ggpht.com')
+                    )) {
+                        return originalFetch.apply(this, args);
+                    }
                     if (url && (
                         url.includes('api.atlassian.com') ||
                         url.includes('marketplace.atlassian.com') ||
@@ -299,6 +326,16 @@ class _Saver:
                             url.startsWith('./') ||
                             url.startsWith('../') ||
                             (!url.includes('://') && !url.startsWith('/') && !url.startsWith('Z:/') && !url.startsWith('/Z:/'))
+                        )) {
+                            return originalOpen.apply(this, [method, url, ...rest]);
+                        }
+                        // Allow YouTube, Google Video, and related media domains
+                        if (url && (
+                            url.includes('youtube.com') ||
+                            url.includes('youtu.be') ||
+                            url.includes('ytimg.com') ||
+                            url.includes('googlevideo.com') ||
+                            url.includes('ggpht.com')
                         )) {
                             return originalOpen.apply(this, [method, url, ...rest]);
                         }
