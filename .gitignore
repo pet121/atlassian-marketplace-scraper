@@ -12,6 +12,9 @@ CLAUDE.md
 # Security analysis (local only)
 SECURITY_ANALYSIS.md
 
+# Root scripts analysis (local only)
+ROOT_SCRIPTS_ANALYSIS.md
+
 # Python
 __pycache__/
 *.py[cod]
