@@ -37,6 +37,7 @@ ENV/
 
 # Temporary files and drafts
 *.txt
+!requirements.txt
 *.tmp
 *.commit
 commit_message*
