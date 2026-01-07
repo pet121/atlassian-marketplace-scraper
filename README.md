@@ -71,7 +71,7 @@ AtlassianMarketplaceScraper/
 
 ### Quick Setup (Windows)
 
-**Option 1: Run Launcher (Recommended)**
+**Recommended: Use the Launcher Script**
 
 Double-click `start.bat` or run in PowerShell:
 
@@ -79,28 +79,18 @@ Double-click `start.bat` or run in PowerShell:
 .\start.ps1
 ```
 
-The launcher script will:
+The launcher script will automatically:
 - Check Python installation
 - Create virtual environment if needed
 - Install dependencies if needed
 - Install Playwright Chromium browser
-- Check for `.env` configuration
+- Create `.env` file from `.env.example` if missing
 - Launch Flask web application
 
-**Option 2: Install First, Run Later**
-
-```powershell
-.\install.ps1
-```
-
-The installer script will:
-- Check Python installation
-- Create virtual environment
-- Install all dependencies from requirements.txt
-- Install Playwright Chromium browser
-- Create `.env` file from `.env.example`
-
-**Important:** Edit the generated `.env` file to configure your credentials and storage paths before running scrapers.
+**Important:** On first run, the script will create `.env` file. Edit it with your credentials and storage paths before running scrapers:
+- `MARKETPLACE_USERNAME` and `MARKETPLACE_API_TOKEN`
+- `ADMIN_USERNAME` and `ADMIN_PASSWORD`
+- Storage paths (optional, uses `./data` by default)
 
 ### Manual Setup (Linux/Mac/Windows)
 
