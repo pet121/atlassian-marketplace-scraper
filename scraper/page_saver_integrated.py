@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-Интегрированный модуль сохранения веб-страниц из старой версии.
-Полная версия с поддержкой Playwright и скачиванием всех ресурсов.
+Integrated web page saver module.
+Full version with Playwright support and resource downloading.
 """
 
 from __future__ import annotations
@@ -26,13 +26,13 @@ __all__ = ["save_webpage_full", "SaveResult"]
 
 @dataclass
 class SaveResult:
-    """Результат сохранения страницы."""
-    output_html: str           # путь к сохранённому HTML
-    assets_dir: Optional[str]  # папка с ресурсами (None в онлайн-режиме)
-    mode: str                  # "OFFLINE" или "ONLINE"
+    """Page save result."""
+    output_html: str           # path to saved HTML
+    assets_dir: Optional[str]  # assets folder (None in online mode)
+    mode: str                  # "OFFLINE" or "ONLINE"
 
 
-# ------------------------ вспомогательные функции ------------------------
+# ------------------------ helper functions ------------------------
 
 def _user_agent() -> str:
     return ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -70,7 +70,7 @@ def _is_data_url(u: str) -> bool:
     return u.strip().startswith("data:")
 
 
-# CSS url() обработка
+# CSS url() processing
 _CSS_URL_RE = re.compile(r"url\(\s*([\"']?)(.+?)\1\s*\)", re.IGNORECASE)
 
 
@@ -90,7 +90,7 @@ def _rewrite_css_urls(css_text: str, repl_map: Dict[str, str]) -> str:
     return _CSS_URL_RE.sub(_sub, css_text or "")
 
 
-# ------------------------------ ядро -------------------------------------
+# ------------------------------ core -------------------------------------
 
 class _Saver:
     def __init__(self, url: str, out_html: Path, assets_dir: Optional[Path], offline: bool, timeout: int, session: Optional[requests.Session] = None):
@@ -102,7 +102,7 @@ class _Saver:
         self.session = session or requests.Session()
         self.session.headers.update({"User-Agent": _user_agent()})
         self._downloaded: Dict[str, str] = {}  # abs_url -> rel_path/from html
-        self._playwright_resources: List[str] = []  # Ресурсы, найденные через Playwright
+        self._playwright_resources: List[str] = []  # Resources found via Playwright
 
     def _abs_url(self, base: str, maybe: str) -> str:
         if not maybe:
@@ -112,7 +112,7 @@ class _Saver:
         return urljoin(base, maybe)
 
     def _save_asset(self, abs_url: str, subfolder: str = "") -> str:
-        """Скачивает ресурс и возвращает относительный путь для HTML/CSS."""
+        """Downloads resource and returns relative path for HTML/CSS."""
         if _is_data_url(abs_url):
             return abs_url
         if abs_url in self._downloaded:
@@ -138,7 +138,7 @@ class _Saver:
                 resp = self.session.get(abs_url, timeout=self.timeout)
             resp.raise_for_status()
         except Exception as e:
-            logger.debug(f"Не удалось скачать ресурс {abs_url}: {e}")
+            logger.debug(f"Failed to download resource {abs_url}: {e}")
             return abs_url
 
         ctype = (resp.headers.get("Content-Type") or "").split(";")[0].strip().lower()
@@ -173,7 +173,7 @@ class _Saver:
         target = _ensure_ext_by_mime(target, ctype)
 
         target.write_bytes(resp.content)
-        logger.debug(f"Скачан ресурс: {abs_url} -> {target.name}")
+        logger.debug(f"Downloaded resource: {abs_url} -> {target.name}")
 
         try:
             rel_path = os.path.relpath(target, self.out_html.parent)
@@ -214,7 +214,7 @@ class _Saver:
         if not rel_path.startswith(("http://", "https://", "/", "./", "../")):
             rel_path = "./" + rel_path
         
-        logger.debug(f"Относительный путь к ресурсу: {rel_path} (из {abs_url})")
+        logger.debug(f"Relative path to resource: {rel_path} (from {abs_url})")
         
         self._downloaded[abs_url] = rel_path
         return rel_path
@@ -257,7 +257,7 @@ class _Saver:
             head.insert(0, base)
 
     def _inject_offline_patches(self, soup: BeautifulSoup):
-        """Вставляет патчи для блокировки API-вызовов в самое начало страницы."""
+        """Injects patches to block API calls at the beginning of the page."""
         head = soup.find("head")
         if not head:
             head = soup.new_tag("head")
@@ -364,12 +364,12 @@ class _Saver:
                 };
             }
             if (typeof window !== 'undefined' && window.addEventListener) {
-                // Блокируем все ошибки связанные с загрузкой ресурсов
+                // Block all errors related to resource loading
                 var originalConsoleError = console.error;
                 console.error = function() {
                     var args = Array.prototype.slice.call(arguments);
                     var message = args.join(' ');
-                    // Подавляем ошибки связанные с file://, CORS, и отсутствующими файлами
+                    // Suppress errors related to file://, CORS, and missing files
                     if (message.includes('file://') || 
                         message.includes('CORS') || 
                         message.includes('ERR_FILE_NOT_FOUND') ||
@@ -382,10 +382,10 @@ class _Saver:
                         message.includes('onetrust') ||
                         message.includes('statsig') ||
                         message.includes('optimizely')) {
-                        // Подавляем эти ошибки
+                        // Suppress these errors
                         return;
                     }
-                    // Для остальных ошибок используем оригинальный console.error
+                    // For other errors use original console.error
                     originalConsoleError.apply(console, args);
                 };
                 
@@ -393,7 +393,7 @@ class _Saver:
                     var errorMsg = (e.message || '').toString();
                     var errorSrc = (e.filename || e.source || '').toString();
                     
-                    // Подавляем ошибки связанные с file://, CORS, отсутствующими файлами
+                    // Suppress errors related to file://, CORS, missing files
                     if (errorMsg.includes('ChunkLoadError') ||
                         errorMsg.includes('Failed to fetch') ||
                         errorMsg.includes('net::ERR') ||
@@ -414,7 +414,7 @@ class _Saver:
                     }
                 }, true);
                 
-                // Блокируем показ сообщений об ошибках от API
+                // Block API error messages
                 window.addEventListener('unhandledrejection', function(e) {
                     var reason = e.reason || {};
                     var reasonMsg = (reason.message || reason.toString() || '').toString();
@@ -431,11 +431,11 @@ class _Saver:
                 }, true);
             }
             
-            // Скрываем элементы с ошибками API после загрузки
+            // Hide API error elements after loading
             if (typeof document !== 'undefined' && document.addEventListener) {
-                // Запускаем сразу, не ждем DOMContentLoaded
+                // Run immediately, don't wait for DOMContentLoaded
                 function initOfflineMode() {
-                    // Скрываем сообщения об ошибках API
+                    // Hide API error messages
                     var errorElements = document.querySelectorAll('[class*="error"], [class*="outage"], [id*="error"], [id*="outage"]');
                     errorElements.forEach(function(el) {
                         var text = el.textContent || el.innerText || '';
@@ -443,56 +443,204 @@ class _Saver:
                             el.style.display = 'none';
                         }
                     });
-                    
-                    // Активируем работу вкладок (tabs) в офлайн-режиме
+
+                    // Activate YouTube player (yt-lite) in offline mode
+                    activateYouTubePlayers();
+
+                    // Activate tabs in offline mode
                     activateOfflineTabs();
+
+                    // Activate image lightbox
+                    activateImageLightbox();
+                }
+
+                // YouTube player activation for yt-lite components
+                function activateYouTubePlayers() {
+                    // Find all yt-lite containers
+                    var ytContainers = document.querySelectorAll('[class*="yt-lite"], [data-youtube], [data-videoid]');
+                    console.log('[Offline Mode] Found ' + ytContainers.length + ' YouTube containers');
+
+                    ytContainers.forEach(function(container) {
+                        // Get video ID from various possible sources
+                        var videoId = container.getAttribute('data-videoid') ||
+                                     container.getAttribute('data-youtube') ||
+                                     container.getAttribute('data-id');
+
+                        // Try to extract from background-image URL if not found
+                        if (!videoId) {
+                            var bgImage = window.getComputedStyle(container).backgroundImage ||
+                                         container.style.backgroundImage || '';
+                            var match = bgImage.match(/vi\/([a-zA-Z0-9_-]+)\//);
+                            if (match) videoId = match[1];
+                        }
+
+                        if (!videoId) {
+                            console.log('[Offline Mode] No video ID found for container');
+                            return;
+                        }
+
+                        console.log('[Offline Mode] Setting up YouTube player for video: ' + videoId);
+
+                        // Add play button if not present
+                        var playBtn = container.querySelector('[class*="playbtn"], [class*="play-btn"], button');
+                        if (!playBtn) {
+                            playBtn = document.createElement('div');
+                            playBtn.innerHTML = '▶';
+                            playBtn.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);' +
+                                'width:68px;height:48px;background:#f00;border-radius:14px;cursor:pointer;' +
+                                'display:flex;align-items:center;justify-content:center;font-size:24px;color:#fff;';
+                            container.style.position = 'relative';
+                            container.appendChild(playBtn);
+                        }
+
+                        // Set up thumbnail background if not present
+                        if (!container.style.backgroundImage && !window.getComputedStyle(container).backgroundImage.includes('ytimg')) {
+                            container.style.backgroundImage = 'url(https://i.ytimg.com/vi/' + videoId + '/hqdefault.jpg)';
+                            container.style.backgroundSize = 'cover';
+                            container.style.backgroundPosition = 'center';
+                        }
+
+                        // Add click handler to load iframe
+                        container.style.cursor = 'pointer';
+                        container.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            e.stopPropagation();
+
+                            console.log('[Offline Mode] Playing YouTube video: ' + videoId);
+
+                            // Create YouTube iframe
+                            var iframe = document.createElement('iframe');
+                            iframe.src = 'https://www.youtube.com/embed/' + videoId + '?autoplay=1&rel=0';
+                            iframe.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;border:none;';
+                            iframe.setAttribute('allowfullscreen', '');
+                            iframe.setAttribute('allow', 'autoplay; encrypted-media');
+
+                            // Replace container content with iframe
+                            container.innerHTML = '';
+                            container.style.position = 'relative';
+                            container.appendChild(iframe);
+                        }, { once: true });
+                    });
+                }
+
+                // Image lightbox activation
+                function activateImageLightbox() {
+                    var images = document.querySelectorAll('img[data-src], img[src*="product-listing"], [class*="screenshot"] img, [class*="gallery"] img');
+                    console.log('[Offline Mode] Found ' + images.length + ' lightbox images');
+
+                    images.forEach(function(img) {
+                        if (img.closest('[class*="yt-lite"]')) return; // Skip YouTube thumbnails
+
+                        img.style.cursor = 'pointer';
+                        img.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            e.stopPropagation();
+
+                            var src = img.getAttribute('data-src') || img.src;
+                            if (!src) return;
+
+                            // Create simple lightbox
+                            var overlay = document.createElement('div');
+                            overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;' +
+                                'background:rgba(0,0,0,0.9);z-index:10000;display:flex;align-items:center;' +
+                                'justify-content:center;cursor:pointer;';
+
+                            var fullImg = document.createElement('img');
+                            fullImg.src = src;
+                            fullImg.style.cssText = 'max-width:90%;max-height:90%;object-fit:contain;';
+
+                            overlay.appendChild(fullImg);
+                            overlay.addEventListener('click', function() { overlay.remove(); });
+                            document.body.appendChild(overlay);
+                        });
+                    });
                 }
                 
-                // Пытаемся запустить сразу
+                // Try to run immediately
                 if (document.readyState === 'loading') {
                     document.addEventListener('DOMContentLoaded', function() {
                         setTimeout(initOfflineMode, 500);
                     });
                 } else {
-                    // DOM уже загружен
+                    // DOM already loaded
                     setTimeout(initOfflineMode, 500);
                 }
-                
-                // Также запускаем после полной загрузки
+
+                // Also run after full page load
                 window.addEventListener('load', function() {
                     setTimeout(initOfflineMode, 1000);
                 });
             }
             
-            // Функция для активации вкладок в офлайн-режиме
+            // Function to activate tabs in offline mode
             function activateOfflineTabs() {
                 console.log('[Offline Mode] Activating tabs...');
-                
-                // Ищем все элементы вкладок - более широкий поиск
-                var tabButtons = document.querySelectorAll('[role="tab"], [data-tab], .tab-button, button[aria-controls], a[role="tab"], nav a, [class*="tab"]');
-                var tabPanels = document.querySelectorAll('[role="tabpanel"], [data-tabpanel], .tab-panel, [id*="tab"], [data-testid*="tab"]');
-                
+
+                // Helper to check if element is inside media/interactive components that should not be touched
+                function isInsideMediaComponent(el) {
+                    var parent = el;
+                    while (parent) {
+                        var cls = (parent.className || '').toString().toLowerCase();
+                        var id = (parent.id || '').toLowerCase();
+                        // Skip YouTube, lightbox, carousel, gallery, modal components
+                        if (cls.includes('yt-lite') || cls.includes('youtube') || cls.includes('video') ||
+                            cls.includes('lightbox') || cls.includes('gallery') || cls.includes('carousel') ||
+                            cls.includes('modal') || cls.includes('popup') || cls.includes('overlay') ||
+                            cls.includes('slider') || cls.includes('swiper') || cls.includes('fancybox') ||
+                            id.includes('youtube') || id.includes('lightbox') || id.includes('gallery')) {
+                            return true;
+                        }
+                        parent = parent.parentElement;
+                    }
+                    return false;
+                }
+
+                // Valid marketplace tab labels (case-insensitive)
+                var validTabLabels = ['overview', 'reviews', 'pricing', 'privacy', 'support', 'versions', 'changelog'];
+
+                function isValidTabButton(el) {
+                    var text = (el.textContent || el.innerText || '').trim().toLowerCase();
+                    return validTabLabels.some(function(label) {
+                        return text === label || text.includes(label);
+                    });
+                }
+
+                // Use more specific selectors - only actual tab roles, not generic links
+                var tabButtons = document.querySelectorAll('[role="tab"], [data-tab], .tab-button, button[aria-controls]');
+                var tabPanels = document.querySelectorAll('[role="tabpanel"], [data-tabpanel], .tab-panel');
+
                 console.log('[Offline Mode] Found ' + tabButtons.length + ' tab buttons, ' + tabPanels.length + ' tab panels');
-                
-                // Обработка всех найденных элементов вкладок
+
+                // Process all found tab elements
                 tabButtons.forEach(function(button) {
-                    // Клонируем элемент чтобы удалить старые обработчики
+                    // Skip elements inside media components
+                    if (isInsideMediaComponent(button)) {
+                        console.log('[Offline Mode] Skipping button inside media component');
+                        return;
+                    }
+
+                    // Only process buttons that look like actual tab navigation
+                    if (!isValidTabButton(button) && !button.hasAttribute('aria-controls')) {
+                        return;
+                    }
+
+                    // Clone element to remove old handlers
                     var newButton = button.cloneNode(true);
                     button.parentNode.replaceChild(newButton, button);
-                    
+
                     newButton.addEventListener('click', function(e) {
                         e.preventDefault();
                         e.stopPropagation();
                         e.stopImmediatePropagation();
-                        
-                        var targetId = newButton.getAttribute('aria-controls') || 
+
+                        var targetId = newButton.getAttribute('aria-controls') ||
                                      newButton.getAttribute('data-tab') ||
                                      (newButton.getAttribute('href') || '').replace('#', '').split('?')[0];
-                        
+
                         var buttonText = (newButton.textContent || newButton.innerText || '').trim().toLowerCase();
-                        
+
                         console.log('[Offline Mode] Tab clicked: ' + buttonText + ', target: ' + targetId);
-                        
+
                         if (targetId) {
                             showTabById(targetId);
                         } else if (buttonText) {
@@ -500,29 +648,28 @@ class _Saver:
                         }
                         
                         return false;
-                    }, true); // useCapture = true для приоритета
+                    }, true); // useCapture = true for priority
                 });
                 
-                // Если не нашли стандартные вкладки, ищем по тексту
+                // Fallback: only look for nav links if no tab buttons were found
+                // Use much more restrictive criteria
                 if (tabButtons.length === 0) {
-                    var navLinks = document.querySelectorAll('nav a, .nav-link, [class*="tab"], [class*="Tab"], a[href*="#"]');
-                    console.log('[Offline Mode] Found ' + navLinks.length + ' navigation links');
-                    
+                    var navLinks = document.querySelectorAll('nav a, .nav-link');
+                    console.log('[Offline Mode] Found ' + navLinks.length + ' navigation links (fallback)');
+
                     navLinks.forEach(function(link) {
+                        // Skip elements inside media components
+                        if (isInsideMediaComponent(link)) {
+                            return;
+                        }
+
                         var linkText = (link.textContent || link.innerText || '').trim().toLowerCase();
-                        
-                        if (linkText && (
-                            linkText.includes('overview') ||
-                            linkText.includes('reviews') ||
-                            linkText.includes('pricing') ||
-                            linkText.includes('privacy') ||
-                            linkText.includes('support') ||
-                            linkText.includes('installation') ||
-                            linkText.includes('documentation')
-                        )) {
+
+                        // Only handle exact marketplace tab labels
+                        if (linkText && validTabLabels.some(function(label) { return linkText === label; })) {
                             var newLink = link.cloneNode(true);
                             link.parentNode.replaceChild(newLink, link);
-                            
+
                             newLink.addEventListener('click', function(e) {
                                 e.preventDefault();
                                 e.stopPropagation();
@@ -534,29 +681,29 @@ class _Saver:
                         }
                     });
                 }
-                
+
                 console.log('[Offline Mode] Tabs activated');
             }
-            
+
             function showTab(tabName) {
                 console.log('[Offline Mode] Showing tab: ' + tabName);
-                
-                // Скрываем все панели - более широкий поиск
-                var allPanels = document.querySelectorAll('[role="tabpanel"], [data-tabpanel], .tab-panel, [class*="content"], [class*="panel"], [class*="Content"], [class*="Panel"], section, main > div, [data-testid*="panel"]');
+
+                // Only hide actual tab panels, not all content
+                var allPanels = document.querySelectorAll('[role="tabpanel"], [data-tabpanel], .tab-panel');
                 allPanels.forEach(function(panel) {
                     panel.style.display = 'none';
                     panel.setAttribute('aria-hidden', 'true');
                 });
-                
-                // Убираем активный класс со всех кнопок
-                var allButtons = document.querySelectorAll('[role="tab"], [data-tab], .tab-button, button[aria-controls], nav a, [class*="tab"]');
+
+                // Only update actual tab buttons
+                var allButtons = document.querySelectorAll('[role="tab"], [data-tab], .tab-button, button[aria-controls]');
                 allButtons.forEach(function(btn) {
                     btn.classList.remove('active', 'selected', 'is-active', 'is-selected');
                     btn.setAttribute('aria-selected', 'false');
                     btn.setAttribute('aria-current', 'false');
                 });
                 
-                // Показываем нужную панель (эвристический поиск)
+                // Show target panel (heuristic search)
                 var keywords = {
                     'overview': ['overview', 'description', 'main', 'about'],
                     'reviews': ['review', 'rating', 'feedback', 'comment'],
@@ -585,14 +732,14 @@ class _Saver:
                     }
                 });
                 
-                // Если не нашли панель, показываем первую доступную
+                // If panel not found, show first available
                 if (!foundPanel && allPanels.length > 0) {
                     allPanels[0].style.display = 'block';
                     allPanels[0].setAttribute('aria-hidden', 'false');
                     console.log('[Offline Mode] No specific panel found, showing first available');
                 }
                 
-                // Обновляем активную кнопку
+                // Update active button
                 allButtons.forEach(function(btn) {
                     var btnText = (btn.textContent || btn.innerText || '').trim().toLowerCase();
                     if (btnText.includes(tabName) || targetKeywords.some(function(kw) { return btnText.includes(kw); })) {
@@ -604,20 +751,20 @@ class _Saver:
             }
             
             function showTabById(targetId) {
-                // Скрываем все панели
+                // Hide all panels
                 var allPanels = document.querySelectorAll('[role="tabpanel"], [data-tabpanel], .tab-panel');
                 allPanels.forEach(function(panel) {
                     panel.style.display = 'none';
                 });
                 
-                // Показываем целевую панель
+                // Show target panel
                 var targetPanel = document.getElementById(targetId) || 
                                 document.querySelector('[data-tabpanel="' + targetId + '"]');
                 if (targetPanel) {
                     targetPanel.style.display = 'block';
                 }
                 
-                // Обновляем активные кнопки
+                // Update active buttons
                 var allButtons = document.querySelectorAll('[role="tab"], [data-tab], .tab-button');
                 allButtons.forEach(function(btn) {
                     var btnTarget = btn.getAttribute('aria-controls') || btn.getAttribute('data-tab');
@@ -633,7 +780,7 @@ class _Saver:
         })();
         """
         head.insert(0, patch_script)
-        logger.debug("Добавлены патчи для офлайн-режима в начало страницы")
+        logger.debug("Added offline mode patches to beginning of page")
 
     def _fix_absolute_paths(self, soup: BeautifulSoup, base_url: str):
         """Fix absolute paths that start with drive letters (I:/, Z:/, etc.)"""
@@ -678,9 +825,9 @@ class _Saver:
                                     new_path = self._save_asset(abs_url, subfolder="js" if clean_path.endswith('.js') else "css")
                                     tag[attr] = new_path
                                     fixed_count += 1
-                                    logger.debug(f"Исправлен путь: {value} -> {new_path}")
+                                    logger.debug(f"Fixed path: {value} -> {new_path}")
                                 except Exception as e:
-                                    logger.debug(f"Не удалось скачать {abs_url}: {e}")
+                                    logger.debug(f"Failed to download {abs_url}: {e}")
                                     tag[attr] = ""  # Remove broken link
                                     removed_count += 1
                             else:
@@ -695,59 +842,69 @@ class _Saver:
                                 tag[attr] = new_path
                                 fixed_count += 1
                             except Exception as e:
-                                logger.debug(f"Не удалось скачать {abs_url}: {e}")
+                                logger.debug(f"Failed to download {abs_url}: {e}")
                                 tag[attr] = ""  # Remove broken link
                                 removed_count += 1
         
         if fixed_count > 0 or removed_count > 0:
-            logger.info(f"Исправлено путей: {fixed_count}, удалено битых ссылок: {removed_count}")
+            logger.info(f"Fixed paths: {fixed_count}, removed broken links: {removed_count}")
 
     def _disable_error_scripts(self, soup: BeautifulSoup):
-        """Remove or disable problematic scripts that cause errors in offline mode."""
+        """Remove or disable problematic scripts that cause errors in offline mode.
+
+        IMPORTANT: Be conservative! Only remove scripts that are definitely problematic
+        (analytics, tracking, cookie consent). Do NOT remove main application JavaScript.
+        """
         scripts = soup.find_all("script")
         removed_count = 0
         disabled_count = 0
-        
+
+        # Only remove scripts from these specific problematic sources
+        # Do NOT remove main application JS (which may be from marketplace.atlassian.com)
+        problematic_src_patterns = [
+            "onetrust",           # Cookie consent
+            "statsig",            # A/B testing
+            "optimizely",         # A/B testing
+            "analytics",          # Analytics
+            "gtag",               # Google Analytics
+            "google-analytics",   # Google Analytics
+            "segment.io",         # Analytics
+            "hotjar",             # Analytics
+            "px.ads.linkedin",    # LinkedIn tracking
+            "facebook.com/tr",    # Facebook tracking
+            "connect.facebook",   # Facebook SDK
+        ]
+
         for script in scripts:
-            script_text = script.string or ""
-            error_patterns = [
-                "404", "not found", "error", "catch",
-                "window.location", "redirect",
-                "api.atlassian.com", "marketplace.atlassian.com/api",
-                "marketplace.atlassian.com/rest",
-                "fetch(", "XMLHttpRequest",
-                "/rest/", "/api/", "gateway/",
-                "amkt-frontend-static", "globalRequire",
-                "onetrust", "cookie-integrator",
-                "statsig", "optimizely",
-            ]
-            script_lower = script_text.lower()
-            has_error_handling = any(pattern in script_lower for pattern in error_patterns)
-            
             if script.has_attr("src"):
                 src = script.get("src", "")
                 src_lower = src.lower()
-                # Remove scripts with problematic paths or URLs
-                if (any(pattern in src_lower for pattern in ["api", "analytics", "track", "error", "rest", "gateway", "marketplace", "amkt-frontend", "onetrust", "statsig", "optimizely"]) or
-                    src.startswith('/I:/') or src.startswith('I:/') or
-                    src.startswith('/Z:/') or src.startswith('Z:/')):
+
+                # Only remove scripts from definitely problematic sources
+                if any(pattern in src_lower for pattern in problematic_src_patterns):
                     script.decompose()
                     removed_count += 1
-                    logger.debug(f"Удалён проблемный скрипт: {src}")
-            elif has_error_handling and len(script_text) > 500:
-                script.decompose()
-                removed_count += 1
-                logger.debug(f"Удалён проблемный inline скрипт (длина: {len(script_text)})")
-            elif len(script_text) > 0 and len(script_text) < 500:
-                # For small scripts, try to disable problematic code instead of removing
-                if any(pattern in script_lower for pattern in ["globalRequire", "onetrust", "statsig"]):
-                    # Replace problematic code with empty function
-                    script.string = "// Disabled for offline mode"
-                    disabled_count += 1
-                    logger.debug(f"Отключён проблемный inline скрипт")
+                    logger.debug(f"Removed problematic script: {src}")
+                # Remove scripts with broken Windows paths
+                elif (src.startswith('/I:/') or src.startswith('I:/') or
+                      src.startswith('/Z:/') or src.startswith('Z:/')):
+                    script.decompose()
+                    removed_count += 1
+                    logger.debug(f"Removed script with invalid path: {src}")
+            else:
+                # Inline scripts - only disable specific problematic ones
+                script_text = script.string or ""
+                script_lower = script_text.lower()
+
+                # Only disable small inline scripts that are clearly problematic
+                if len(script_text) > 0 and len(script_text) < 500:
+                    if any(pattern in script_lower for pattern in ["globalrequire", "onetrust", "statsig", "optimizely"]):
+                        script.string = "// Disabled for offline mode"
+                        disabled_count += 1
+                        logger.debug(f"Disabled problematic inline script")
         
         if removed_count > 0 or disabled_count > 0:
-            logger.info(f"Удалено скриптов: {removed_count}, отключено: {disabled_count}")
+            logger.info(f"Removed scripts: {removed_count}, disabled: {disabled_count}")
 
     def _process_css_file(self, css_abs_url: str, css_local_rel: str, base_for_css: str):
         if not self.offline:
@@ -773,11 +930,11 @@ class _Saver:
             pass
 
     def _get_html_with_playwright(self, url: str, wait_seconds: int = 8, timeout: int = 90) -> Tuple[str, str]:
-        """Получает HTML страницы после выполнения JavaScript через Playwright."""
+        """Gets page HTML after JavaScript execution via Playwright."""
         try:
             from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
             
-            logger.info("Использование Playwright для получения полностью загруженной страницы...")
+            logger.info("Using Playwright to get fully loaded page...")
             
             with sync_playwright() as p:
                 browser = p.chromium.launch(
@@ -821,36 +978,36 @@ class _Saver:
                     except Exception:
                         page.goto(url, timeout=30000)
                 
-                # Ждем загрузки контента
+                # Wait for content to load
                 page.wait_for_timeout(wait_seconds * 1000)
                 page.wait_for_timeout(3000)
                 
-                # Пытаемся дождаться загрузки основного контента
+                # Try to wait for main content to load
                 try:
-                    # Ждем появления основного контента страницы
+                    # Wait for body element
                     page.wait_for_selector('body', timeout=5000)
-                    # Дополнительное ожидание для загрузки динамического контента
+                    # Additional wait for dynamic content
                     page.wait_for_timeout(5000)
                 except Exception:
-                    # Если не удалось дождаться, продолжаем
+                    # If wait failed, continue
                     pass
-                
+
                 html = page.content()
                 final_url = page.url
-                
+
                 browser.close()
-                logger.info(f"Страница загружена через Playwright ({len(html)} символов)")
+                logger.info(f"Page loaded via Playwright ({len(html)} characters)")
                 return html, final_url
                 
         except ImportError:
-            logger.warning("Playwright не установлен")
+            logger.warning("Playwright not installed")
             raise
         except Exception as e:
-            logger.warning(f"Ошибка при использовании Playwright: {e}")
+            logger.warning(f"Error using Playwright: {e}")
             raise
 
     def run(self, wait_seconds: int = 8, timeout: int = 90) -> SaveResult:
-        logger.info(f"Скачивание страницы: {self.url}")
+        logger.info(f"Downloading page: {self.url}")
         
         html = None
         base_url = self.url
@@ -858,8 +1015,8 @@ class _Saver:
         try:
             html, base_url = self._get_html_with_playwright(self.url, wait_seconds, timeout)
         except Exception as e:
-            logger.warning(f"Не удалось использовать Playwright: {e}")
-            logger.info("Пробуем использовать обычный HTTP-запрос...")
+            logger.warning(f"Failed to use Playwright: {e}")
+            logger.info("Trying to use regular HTTP request...")
             resp = self.session.get(self.url, timeout=self.timeout)
             resp.raise_for_status()
             html = resp.text
@@ -880,7 +1037,7 @@ class _Saver:
             if img.has_attr("srcset"):
                 img["srcset"] = self._process_srcset(base_url, img["srcset"])
 
-        # <link rel="stylesheet"> и иконки
+        # <link rel="stylesheet"> and icons
         for link in soup.find_all("link"):
             rel = ",".join(link.get("rel", [])).lower()
             href = link.get("href")
@@ -902,7 +1059,7 @@ class _Saver:
                 new_src, _ = self._handle_asset_generic(base_url, src, subfolder="js")
                 sc["src"] = new_src
 
-        # медиа
+        # media
         for tagname, attr, subfolder in [
             ("source", "src", "media"),
             ("video", "src", "media"),
@@ -914,13 +1071,13 @@ class _Saver:
                 if t.has_attr(attr):
                     t[attr] = self._handle_src_like(base_url, t[attr], kind=subfolder)
 
-        # сохранить итоговый HTML
+        # save final HTML
         self.out_html.parent.mkdir(parents=True, exist_ok=True)
         out_html = str(soup)
         if not out_html.strip().startswith('<!DOCTYPE'):
             out_html = '<!DOCTYPE html>\n' + out_html
         self.out_html.write_text(out_html, encoding="utf-8", errors="replace")
-        logger.info(f"Страница сохранена: {self.out_html}")
+        logger.info(f"Page saved: {self.out_html}")
 
         return SaveResult(
             output_html=str(self.out_html),
@@ -938,7 +1095,7 @@ class _Saver:
         return local_rel, abs_u
 
 
-# ------------------------------ публичный API -----------------------------
+# ------------------------------ public API -----------------------------
 
 def save_webpage_full(
     url: str,
@@ -951,19 +1108,19 @@ def save_webpage_full(
     session: Optional[requests.Session] = None,
 ) -> SaveResult:
     """
-    Сохранить страницу в локальный HTML (полная версия из старого кода).
-    
+    Save page to local HTML (full version).
+
     Args:
-        url: исходная ссылка
-        output: путь к HTML-файлу
-        offline: если True — скачать все ресурсы и переписать пути на локальные
-        assets_dir: папка для ресурсов (если None — 'assets')
-        timeout: таймаут HTTP-запросов, секунд
-        wait_seconds: время ожидания после загрузки страницы для JS
-        session: опциональная сессия requests
-        
+        url: source URL
+        output: path to HTML file
+        offline: if True - download all resources and rewrite paths to local
+        assets_dir: folder for resources (if None - 'assets')
+        timeout: HTTP request timeout in seconds
+        wait_seconds: wait time after page load for JS
+        session: optional requests session
+
     Returns:
-        SaveResult с путями к сохранённым файлам
+        SaveResult with paths to saved files
     """
     out_html = Path(output).resolve()
     assets = Path(assets_dir).resolve() if assets_dir else (out_html.parent / "assets")

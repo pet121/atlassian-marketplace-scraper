@@ -1,80 +1,80 @@
-# Smoke Tests для Atlassian Marketplace Scraper
+# Smoke Tests for Atlassian Marketplace Scraper
 
-Smoke tests (дымовые тесты) - это базовые тесты, которые проверяют, что основные функции системы работают и система не сломана.
+Smoke tests are basic tests that verify the main functions of the system work and the system is not broken.
 
-## Что проверяют smoke tests
+## What smoke tests check
 
 ### 1. **MetadataStore** (`TestMetadataStore`)
-- Инициализация хранилища метаданных
-- Получение количества приложений
-- Получение списка приложений
-- Поиск приложения по ключу
+- Metadata store initialization
+- Getting app count
+- Getting app list
+- Finding app by key
 
 ### 2. **DownloadManager** (`TestDownloadManager`)
-- Инициализация менеджера загрузок
-- Получение статистики хранилища
-- Получение детальной статистики хранилища
+- Download manager initialization
+- Getting storage statistics
+- Getting detailed storage statistics
 
 ### 3. **Search Functionality** (`TestSearchFunctionality`)
-- Импорт и инициализация EnhancedSearch
-- Базовый функционал EnhancedSearch
-- Импорт и инициализация WhooshSearchIndex
-- Проверка необходимости перестроения индекса
+- Import and initialization of EnhancedSearch
+- Basic EnhancedSearch functionality
+- Import and initialization of WhooshSearchIndex
+- Checking if index needs rebuilding
 
 ### 4. **File System** (`TestFileSystem`)
-- Существование директорий для описаний
-- Существование директорий для метаданных
-- Существование директорий для бинарных файлов
+- Existence of description directories
+- Existence of metadata directories
+- Existence of binary file directories
 
 ### 5. **Settings** (`TestSettings`)
-- Загрузка настроек
-- Корректность путей в настройках
+- Settings loading
+- Path correctness in settings
 
 ### 6. **Enhanced Search Detailed** (`TestSearchEnhancedDetailed`)
-- Поиск по именам приложений
-- Поиск по именам вендоров
-- Обработка пустых запросов
-- Структура результатов поиска
+- Search by app names
+- Search by vendor names
+- Empty query handling
+- Search result structure
 
 ### 7. **Storage Stats** (`TestStorageStats`)
-- Структура базовой статистики хранилища
-- Структура детальной статистики хранилища
+- Basic storage statistics structure
+- Detailed storage statistics structure
 
-## Запуск тестов
+## Running tests
 
-### Быстрый запуск
+### Quick start
 
 ```bash
 python run_smoke_tests.py
 ```
 
-### С подробным выводом
+### With verbose output
 
 ```bash
 python run_smoke_tests.py --verbose
 ```
 
-### Только быстрые тесты
+### Only quick tests
 
 ```bash
 python run_smoke_tests.py --quick
 ```
 
-### Через unittest напрямую
+### Directly via unittest
 
 ```bash
 python -m unittest tests.test_smoke
 ```
 
-### Через pytest (если установлен)
+### Via pytest (if installed)
 
 ```bash
 pytest tests/test_smoke.py -v
 ```
 
-## Ожидаемый результат
+## Expected result
 
-При успешном выполнении всех тестов вы увидите:
+On successful execution of all tests you will see:
 
 ```
 ======================================================================
@@ -90,45 +90,44 @@ Skipped: 0
 ✓ All smoke tests passed!
 ```
 
-## Интерпретация результатов
+## Interpreting results
 
-- **Tests run**: Количество выполненных тестов
-- **Failures**: Количество провалившихся тестов (проверка не прошла)
-- **Errors**: Количество тестов с ошибками (исключения)
-- **Skipped**: Количество пропущенных тестов (например, если Whoosh не установлен)
+- **Tests run**: Number of tests executed
+- **Failures**: Number of failed tests (assertion failed)
+- **Errors**: Number of tests with errors (exceptions)
+- **Skipped**: Number of skipped tests (e.g., if Whoosh is not installed)
 
-## Что делать, если тесты провалились
+## What to do if tests fail
 
-1. **Проверьте логи**: Ошибки содержат traceback с подробной информацией
-2. **Проверьте зависимости**: Убедитесь, что все пакеты установлены (`pip install -r requirements.txt`)
-3. **Проверьте данные**: Некоторые тесты требуют наличия данных в базе (приложения, описания)
-4. **Проверьте пути**: Убедитесь, что пути в настройках корректны
+1. **Check logs**: Errors contain traceback with detailed information
+2. **Check dependencies**: Make sure all packages are installed (`pip install -r requirements.txt`)
+3. **Check data**: Some tests require data in the database (apps, descriptions)
+4. **Check paths**: Make sure paths in settings are correct
 
-## Добавление новых тестов
+## Adding new tests
 
-Чтобы добавить новый smoke test:
+To add a new smoke test:
 
-1. Откройте `tests/test_smoke.py`
-2. Добавьте новый класс, наследующийся от `unittest.TestCase`
-3. Добавьте методы, начинающиеся с `test_`
-4. Добавьте класс в список `test_classes` в функции `run_smoke_tests()`
+1. Open `tests/test_smoke.py`
+2. Add a new class inheriting from `unittest.TestCase`
+3. Add methods starting with `test_`
+4. Add the class to the `test_classes` list in the `run_smoke_tests()` function
 
-Пример:
+Example:
 
 ```python
 class TestNewFeature(unittest.TestCase):
     """Test new feature."""
-    
+
     def test_new_feature_basic(self):
         """Test basic new feature functionality."""
         # Your test code here
         self.assertTrue(True)
 ```
 
-## Примечания
+## Notes
 
-- Smoke tests должны выполняться быстро (несколько секунд)
-- Тесты не должны изменять данные (read-only)
-- Тесты должны быть независимыми друг от друга
-- Некоторые тесты могут быть пропущены (skip), если зависимости недоступны
-
+- Smoke tests should execute quickly (a few seconds)
+- Tests should not modify data (read-only)
+- Tests should be independent of each other
+- Some tests may be skipped if dependencies are unavailable
