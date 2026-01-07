@@ -426,20 +426,46 @@ docker-compose run --rm web python run_smoke_tests.py
 - `description-downloader` - Description scraper (manual-only)
 - `search-indexer` - Search index builder (manual-only)
 
-**Volumes:**
-- `./data/metadata:/app/data/metadata` - Metadata and database
-- `./logs:/app/logs` - Log files
-- `${BINARIES_PATH:-./data/binaries}:/app/data/binaries` - Binary storage
+**Volume Mounts (configurable via .env):**
 
-**Environment:**
-- Configure via `.env` file (same as local installation)
-- Set `BINARIES_PATH` in `.env` to use external storage
+All storage paths are configurable via environment variables:
+
+```bash
+# Simple mode (defaults - single drive)
+METADATA_PATH=./data/metadata    # Metadata, database, descriptions
+LOGS_PATH=./logs                 # Log files
+BINARIES_PATH=./data/binaries    # Binary files (JAR/OBR)
+```
+
+**Multi-Drive Setup:**
+
+Distribute storage across multiple drives for better I/O performance:
+
+```bash
+# Example 1: Everything on external drive
+METADATA_PATH=/mnt/external/marketplace/metadata
+LOGS_PATH=/mnt/external/marketplace/logs
+BINARIES_PATH=/mnt/external/marketplace/binaries
+
+# Example 2: Metadata on SSD, binaries on HDD
+METADATA_PATH=/mnt/ssd/marketplace/metadata
+LOGS_PATH=/mnt/ssd/marketplace/logs
+BINARIES_PATH=/mnt/hdd/marketplace-binaries
+```
+
+For per-product binaries on separate drives, create a `docker-compose.override.yml` file. See examples in `docker-compose.yml` comments.
+
+**Environment Variables:**
+- All `.env` variables work in Docker (credentials, settings, etc.)
+- Docker-specific: `METADATA_PATH`, `LOGS_PATH`, `BINARIES_PATH` (host paths)
+- App-internal: `METADATA_DIR`, `LOGS_DIR`, `BINARIES_DIR_*` (container paths)
 
 **Features:**
 - Playwright browser pre-installed for description scraping
 - Health checks for web service
 - Automatic restart policy for web service
 - Custom bridge network for service communication
+- YAML anchor for DRY volume configuration
 
 ## Data Storage
 

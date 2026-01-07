@@ -1,31 +1,59 @@
+# Docker Compose configuration for Atlassian Marketplace Scraper
+#
+# STORAGE CONFIGURATION:
+# All storage paths are configurable via environment variables.
+# Set these in your .env file or docker-compose override file.
+#
+# Simple Mode (Default - Single Drive):
+#   METADATA_PATH=./data/metadata
+#   LOGS_PATH=./logs
+#   BINARIES_PATH=./data/binaries
+#
+# Advanced Mode (Multi-Drive Setup):
+#   See examples at the bottom of this file for distributing storage
+#   across multiple drives for better I/O performance.
+
+# Common volume configuration (DRY - reused across all services)
+x-common-volumes: &common-volumes
+  # Metadata (SQLite database, checkpoints, descriptions)
+  # Default: ./data/metadata → Maps to /app/data/metadata in container
+  - ${METADATA_PATH:-./data/metadata}:/app/data/metadata
+
+  # Logs directory
+  # Default: ./logs → Maps to /app/logs in container
+  - ${LOGS_PATH:-./logs}:/app/logs
+
+  # Binaries storage (JAR/OBR files)
+  # Default: ./data/binaries → Maps to /app/data/binaries in container
+  # For multi-drive setup, see examples below
+  - ${BINARIES_PATH:-./data/binaries}:/app/data/binaries
+
 services:
   # Main web application
   web:
     build: .
     container_name: atlassian-scraper-web
     ports:
-      - "5000:5000"
-    volumes:
-      # Persist metadata and logs
-      - ./data/metadata:/app/data/metadata
-      - ./logs:/app/logs
-      # Binaries storage (configure via BINARIES_PATH in .env for external drive)
-      - ${BINARIES_PATH:-./data/binaries}:/app/data/binaries
+      - "${FLASK_PORT:-5000}:5000"
+    volumes: *common-volumes
     env_file:
       - .env
     restart: unless-stopped
     networks:
       - scraper-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:5000/', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      start_period: 5s
+      retries: 3
 
-  # App scraper (run once or on-demand)
+  # App scraper (manual only - uses profiles)
   scraper:
     build: .
     container_name: atlassian-scraper-apps
     command: python run_scraper.py
-    volumes:
-      - ./data/metadata:/app/data/metadata
-      - ./logs:/app/logs
-      - ${BINARIES_PATH:-./data/binaries}:/app/data/binaries
+    volumes: *common-volumes
     env_file:
       - .env
     networks:
@@ -33,15 +61,12 @@ services:
     profiles:
       - scraping
 
-  # Version scraper (run after app scraper)
+  # Version scraper (manual only - uses profiles)
   version-scraper:
     build: .
     container_name: atlassian-scraper-versions
     command: python run_version_scraper.py
-    volumes:
-      - ./data/metadata:/app/data/metadata
-      - ./logs:/app/logs
-      - ${BINARIES_PATH:-./data/binaries}:/app/data/binaries
+    volumes: *common-volumes
     env_file:
       - .env
     networks:
@@ -49,15 +74,12 @@ services:
     profiles:
       - scraping
 
-  # Binary downloader (run after version scraper)
+  # Binary downloader (manual only - uses profiles)
   downloader:
     build: .
     container_name: atlassian-scraper-downloader
     command: python run_downloader.py
-    volumes:
-      - ./data/metadata:/app/data/metadata
-      - ./logs:/app/logs
-      - ${BINARIES_PATH:-./data/binaries}:/app/data/binaries
+    volumes: *common-volumes
     env_file:
       - .env
     networks:
@@ -65,15 +87,12 @@ services:
     profiles:
       - scraping
 
-  # Description downloader (run after version scraper)
+  # Description downloader (manual only - uses profiles)
   description-downloader:
     build: .
     container_name: atlassian-scraper-descriptions
     command: python run_description_downloader.py
-    volumes:
-      - ./data/metadata:/app/data/metadata
-      - ./logs:/app/logs
-      - ${BINARIES_PATH:-./data/binaries}:/app/data/binaries
+    volumes: *common-volumes
     env_file:
       - .env
     networks:
@@ -81,15 +100,12 @@ services:
     profiles:
       - scraping
 
-  # Search indexer (run after descriptions downloaded)
+  # Search indexer (manual only - uses profiles)
   search-indexer:
     build: .
     container_name: atlassian-scraper-indexer
     command: python run_index_search.py
-    volumes:
-      - ./data/metadata:/app/data/metadata
-      - ./logs:/app/logs
-      - ${BINARIES_PATH:-./data/binaries}:/app/data/binaries
+    volumes: *common-volumes
     env_file:
       - .env
     networks:
@@ -100,3 +116,66 @@ services:
 networks:
   scraper-network:
     driver: bridge
+
+# ============================================================================
+# MULTI-DRIVE CONFIGURATION EXAMPLES
+# ============================================================================
+# For advanced setups, create a docker-compose.override.yml file to customize
+# volume mounts per service without modifying this file.
+#
+# Example 1: Everything on external drive
+# ----------------------------------------
+# Add to .env:
+#   METADATA_PATH=/mnt/external/marketplace/metadata
+#   LOGS_PATH=/mnt/external/marketplace/logs
+#   BINARIES_PATH=/mnt/external/marketplace/binaries
+#
+# Example 2: Metadata on SSD, binaries on HDD
+# --------------------------------------------
+# Add to .env:
+#   METADATA_PATH=/mnt/ssd/marketplace/metadata
+#   LOGS_PATH=/mnt/ssd/marketplace/logs
+#   BINARIES_PATH=/mnt/hdd/marketplace-binaries
+#
+# Example 3: Per-product binaries on separate drives (Maximum I/O)
+# -----------------------------------------------------------------
+# For this advanced setup, create docker-compose.override.yml:
+#
+# services:
+#   downloader:
+#     volumes:
+#       - ${METADATA_PATH:-./data/metadata}:/app/data/metadata
+#       - ${LOGS_PATH:-./logs}:/app/logs
+#       # Mount each product to separate drive
+#       - /mnt/disk1/jira:/app/data/binaries/jira
+#       - /mnt/disk2/confluence:/app/data/binaries/confluence
+#       - /mnt/disk3/bitbucket:/app/data/binaries/bitbucket
+#       - /mnt/disk4/bamboo:/app/data/binaries/bamboo
+#       - /mnt/disk5/crowd:/app/data/binaries/crowd
+#     environment:
+#       # Tell the Python app where to find binaries inside container
+#       - BINARIES_DIR_JIRA=/app/data/binaries/jira
+#       - BINARIES_DIR_CONFLUENCE=/app/data/binaries/confluence
+#       - BINARIES_DIR_BITBUCKET=/app/data/binaries/bitbucket
+#       - BINARIES_DIR_BAMBOO=/app/data/binaries/bamboo
+#       - BINARIES_DIR_CROWD=/app/data/binaries/crowd
+#
+# Example 4: Using Docker volumes instead of bind mounts
+# -------------------------------------------------------
+# Create named volumes for better Docker management:
+#
+# volumes:
+#   metadata:
+#   logs:
+#   binaries:
+#
+# services:
+#   web:
+#     volumes:
+#       - metadata:/app/data/metadata
+#       - logs:/app/logs
+#       - binaries:/app/data/binaries
+#
+# Note: Named volumes are stored in Docker's volume directory
+# (/var/lib/docker/volumes on Linux). Use bind mounts (default)
+# for direct access to files from the host system.
