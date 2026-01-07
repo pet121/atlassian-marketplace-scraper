@@ -37,7 +37,17 @@ ENV/
 Thumbs.db
 
 # Data - downloaded binaries and metadata (never commit)
-data/binaries/
-data/metadata/
+# Ignore all files in data directories but keep .gitkeep for directory structure
+data/binaries/*
+!data/binaries/.gitkeep
+data/binaries/*/*
+data/metadata/*
+!data/metadata/.gitkeep
+!data/metadata/checkpoints/
+data/metadata/checkpoints/*
+!data/metadata/checkpoints/.gitkeep
+!data/metadata/versions/
+data/metadata/versions/*
+!data/metadata/versions/.gitkeep
 *.db
 
