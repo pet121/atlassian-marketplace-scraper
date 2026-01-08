@@ -314,7 +314,7 @@ class DownloadManager:
                         total_size += os.path.getsize(file_path)
                         file_count += 1
                     except OSError:
-                        pass
+                        pass  # Skip inaccessible files (permissions, deleted, etc.)
 
         # Convert to human-readable format
         size_gb = total_size / (1024 ** 3)
@@ -440,7 +440,7 @@ class DownloadManager:
                             data['by_disk'][drive]['size'] += file_size
                             data['by_disk'][drive]['file_count'] += 1
                         except OSError:
-                            pass
+                            pass  # Skip inaccessible files (permissions, deleted, etc.)
                     
                     # Store folder stats (only for top-level folders to avoid too much detail)
                     # Limit number of folders tracked for performance

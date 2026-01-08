@@ -303,7 +303,7 @@ class _Saver:
                     try:
                         width = int(d[:-1])
                     except ValueError:
-                        pass
+                        pass  # Invalid width descriptor, skip it
 
             new_url = self._handle_src_like(base_url, url_part, kind="img")
             parts.append((new_url, desc))

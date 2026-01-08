@@ -6,9 +6,18 @@ import base64
 import random
 import threading
 from typing import Optional, Dict, List
-from utils.logger import get_logger
 
-logger = get_logger('credentials')
+# Lazy logger initialization to avoid circular import with config.settings -> credentials -> logger -> settings
+_logger = None
+
+
+def _get_logger():
+    """Get logger instance lazily to avoid circular imports."""
+    global _logger
+    if _logger is None:
+        from utils.logger import get_logger
+        _logger = get_logger('credentials')
+    return _logger
 
 # Credentials file (not in git)
 CREDENTIALS_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.credentials.json')
@@ -46,7 +55,7 @@ def _get_or_create_encryption_key() -> bytes:
         key = Fernet.generate_key()
         with open(ENCRYPTION_KEY_FILE, 'wb') as f:
             f.write(key)
-        logger.info("Generated new encryption key for credentials")
+        _get_logger().info("Generated new encryption key for credentials")
         return key
 
 
@@ -137,36 +146,36 @@ def get_credentials() -> Dict[str, str]:
 
                 # Old format - single credentials
                 elif is_encrypted:
-                    logger.info("Credentials are encrypted - decrypting")
+                    _get_logger().info("Credentials are encrypted - decrypting")
                     credentials = {
                         'username': _decrypt_string(data.get('username', '')) if data.get('username') else '',
                         'api_token': _decrypt_string(data.get('api_token', '')) if data.get('api_token') else ''
                     }
                 else:
-                    logger.warning("Credentials are stored in plain text - will be encrypted on next save")
+                    _get_logger().warning("Credentials are stored in plain text - will be encrypted on next save")
                     credentials = {
                         'username': data.get('username', ''),
                         'api_token': data.get('api_token', '')
                     }
         except Exception as e:
-            logger.error(f"Error reading credentials file: {str(e)}")
+            _get_logger().error(f"Error reading credentials file: {str(e)}")
 
     # Fallback to .env if credentials are empty
     if not credentials.get('username') or not credentials.get('api_token'):
-        logger.debug("Credentials empty in .credentials.json, checking .env file")
+        _get_logger().debug("Credentials empty in .credentials.json, checking .env file")
         try:
             from decouple import config
             env_username = config('MARKETPLACE_USERNAME', default='')
             env_token = config('MARKETPLACE_API_TOKEN', default='')
 
             if env_username and env_token:
-                logger.debug("Using credentials from .env file")
+                _get_logger().debug("Using credentials from .env file")
                 credentials = {
                     'username': env_username,
                     'api_token': env_token
                 }
         except Exception as e:
-            logger.error(f"Error reading credentials from .env: {str(e)}")
+            _get_logger().error(f"Error reading credentials from .env: {str(e)}")
 
     return credentials
 
@@ -220,24 +229,24 @@ def get_all_credentials() -> List[Dict[str, str]]:
                             'api_token': data.get('api_token', '')
                         }]
         except Exception as e:
-            logger.error(f"Error reading credentials file: {str(e)}")
+            _get_logger().error(f"Error reading credentials file: {str(e)}")
 
     # Fallback to .env if no accounts found
     if not accounts:
-        logger.debug("No credentials in .credentials.json, checking .env file")
+        _get_logger().debug("No credentials in .credentials.json, checking .env file")
         try:
             from decouple import config
             env_username = config('MARKETPLACE_USERNAME', default='')
             env_token = config('MARKETPLACE_API_TOKEN', default='')
 
             if env_username and env_token:
-                logger.debug("Using credentials from .env file")
+                _get_logger().debug("Using credentials from .env file")
                 accounts = [{
                     'username': env_username,
                     'api_token': env_token
                 }]
         except Exception as e:
-            logger.error(f"Error reading credentials from .env: {str(e)}")
+            _get_logger().error(f"Error reading credentials from .env: {str(e)}")
 
     return accounts
 
@@ -295,10 +304,10 @@ def save_credentials(username: str, api_token: str) -> bool:
         with open(CREDENTIALS_FILE, 'w', encoding='utf-8') as f:
             json.dump(credentials, f, indent=2)
 
-        logger.info(f"Credentials saved successfully (encrypted, {len(existing_accounts)} account(s))")
+        _get_logger().info(f"Credentials saved successfully (encrypted, {len(existing_accounts)} account(s))")
         return True
     except Exception as e:
-        logger.error(f"Error saving credentials: {str(e)}")
+        _get_logger().error(f"Error saving credentials: {str(e)}")
         return False
 
 
@@ -330,10 +339,10 @@ def save_multiple_credentials(accounts: List[Dict[str, str]]) -> bool:
         with open(CREDENTIALS_FILE, 'w', encoding='utf-8') as f:
             json.dump(credentials, f, indent=2)
 
-        logger.info(f"Saved {len(accounts)} encrypted account(s) successfully")
+        _get_logger().info(f"Saved {len(accounts)} encrypted account(s) successfully")
         return True
     except Exception as e:
-        logger.error(f"Error saving credentials: {str(e)}")
+        _get_logger().error(f"Error saving credentials: {str(e)}")
         return False
 
 
