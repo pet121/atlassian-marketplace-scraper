@@ -68,6 +68,22 @@ def _validate_path_component(component: str) -> bool:
     return True
 
 
+def _safe_error_message(e: Exception) -> str:  # noqa: ARG001 - e intentionally unused
+    """Return a safe error message that doesn't expose internal details.
+
+    The exception parameter is accepted but intentionally not used in the output
+    to prevent stack trace exposure. Detailed errors should be logged separately.
+
+    Args:
+        e: The exception that occurred (used for type hints, not exposed)
+
+    Returns:
+        A generic error message string
+    """
+    # Never expose exception details to users - they are logged separately
+    return "An internal error occurred. Please try again later."
+
+
 from config import settings
 from config.products import PRODUCTS, PRODUCT_LIST
 from scraper.metadata_store import MetadataStore
@@ -112,7 +128,7 @@ def register_routes(app):
 
         except Exception as e:
             logger.error(f"Error loading dashboard: {str(e)}")
-            return render_template('error.html', error=str(e)), 500
+            return render_template('error.html', error=_safe_error_message(e)), 500
 
     @app.route('/apps')
     def apps_list():
@@ -167,7 +183,7 @@ def register_routes(app):
 
         except Exception as e:
             logger.error(f"Error loading apps list: {str(e)}")
-            return render_template('error.html', error=str(e)), 500
+            return render_template('error.html', error=_safe_error_message(e)), 500
 
     @app.route('/apps/<addon_key>')
     def app_detail(addon_key):
@@ -256,7 +272,7 @@ def register_routes(app):
 
         except Exception as e:
             logger.error(f"Error loading app details for {addon_key}: {str(e)}")
-            return render_template('error.html', error=str(e)), 500
+            return render_template('error.html', error=_safe_error_message(e)), 500
 
     @app.route('/apps/<addon_key>/description/assets/<path:asset_path>')
     def app_description_asset(addon_key, asset_path):
@@ -316,7 +332,7 @@ def register_routes(app):
                 return render_template('error.html', error="Asset not found"), 404
         except Exception as e:
             logger.error(f"Error serving asset {addon_key}/{asset_path}: {str(e)}")
-            return render_template('error.html', error=str(e)), 500
+            return render_template('error.html', error=_safe_error_message(e)), 500
 
     @app.route('/apps/<addon_key>/logo')
     def app_logo(addon_key):
@@ -474,7 +490,7 @@ def register_routes(app):
                         html_content = html_content.encode('utf-8', errors='replace').decode('utf-8')
                 except Exception as e:
                     logger.error(f"Error reading HTML file {description_path}: {str(e)}")
-                    return render_template('error.html', error=f"Error reading description: {str(e)}"), 500
+                    return render_template('error.html', error="Error reading description"), 500
 
                 # Ensure DOCTYPE is present (prevents Quirks Mode)
                 if not html_content.strip().startswith('<!DOCTYPE'):
@@ -664,7 +680,7 @@ def register_routes(app):
 
         except Exception as e:
             logger.error(f"Error loading description for {safe_addon_key}/{filename}: {str(e)}")
-            return render_template('error.html', error=str(e)), 500
+            return render_template('error.html', error=_safe_error_message(e)), 500
 
     @app.route('/descriptions')
     def descriptions_list():
@@ -748,7 +764,7 @@ def register_routes(app):
 
         except Exception as e:
             logger.error(f"Error loading descriptions list: {str(e)}")
-            return jsonify({'success': False, 'error': str(e)}), 500
+            return jsonify({'success': False, 'error': _safe_error_message(e)}), 500
 
     @app.route('/download/<product>/<addon_key>/<version_id>')
     def download_binary(product, addon_key, version_id):
@@ -795,7 +811,7 @@ def register_routes(app):
 
         except Exception as e:
             logger.error(f"Error downloading binary: {str(e)}")
-            return jsonify({'error': str(e)}), 500
+            return jsonify({'error': _safe_error_message(e)}), 500
 
     # API Routes
 
@@ -822,7 +838,7 @@ def register_routes(app):
 
         except Exception as e:
             logger.error(f"API error: {str(e)}")
-            return jsonify({'success': False, 'error': str(e)}), 500
+            return jsonify({'success': False, 'error': _safe_error_message(e)}), 500
 
     @app.route('/api/apps/<addon_key>')
     def api_app_detail(addon_key):
@@ -842,7 +858,7 @@ def register_routes(app):
 
         except Exception as e:
             logger.error(f"API error: {str(e)}")
-            return jsonify({'success': False, 'error': str(e)}), 500
+            return jsonify({'success': False, 'error': _safe_error_message(e)}), 500
 
     @app.route('/api/storage-stats')
     def api_storage_stats():
@@ -852,7 +868,7 @@ def register_routes(app):
             return jsonify(detailed_stats)
         except Exception as e:
             logger.error(f"Error getting storage stats: {str(e)}")
-            return jsonify({'error': str(e)}), 500
+            return jsonify({'error': _safe_error_message(e)}), 500
     
     @app.route('/storage')
     def storage_details():
@@ -893,7 +909,7 @@ def register_routes(app):
 
         except Exception as e:
             logger.error(f"API error: {str(e)}")
-            return jsonify({'success': False, 'error': str(e)}), 500
+            return jsonify({'success': False, 'error': _safe_error_message(e)}), 500
 
     @app.route('/api/products')
     def api_products():
@@ -962,7 +978,7 @@ def register_routes(app):
             )
         except Exception as e:
             logger.error(f"Error loading management page: {str(e)}")
-            return render_template('error.html', error=str(e)), 500
+            return render_template('error.html', error=_safe_error_message(e)), 500
 
     @app.route('/api/tasks/start/scrape-apps', methods=['POST'])
     @requires_auth
@@ -982,7 +998,7 @@ def register_routes(app):
             })
         except Exception as e:
             logger.error(f"Error starting scrape apps: {str(e)}")
-            return jsonify({'success': False, 'error': str(e)}), 500
+            return jsonify({'success': False, 'error': _safe_error_message(e)}), 500
 
     @app.route('/api/tasks/start/scrape-versions', methods=['POST'])
     @requires_auth
@@ -999,7 +1015,7 @@ def register_routes(app):
             })
         except Exception as e:
             logger.error(f"Error starting scrape versions: {str(e)}")
-            return jsonify({'success': False, 'error': str(e)}), 500
+            return jsonify({'success': False, 'error': _safe_error_message(e)}), 500
 
     @app.route('/api/tasks/start/download', methods=['POST'])
     @requires_auth
@@ -1019,7 +1035,7 @@ def register_routes(app):
             })
         except Exception as e:
             logger.error(f"Error starting download: {str(e)}")
-            return jsonify({'success': False, 'error': str(e)}), 500
+            return jsonify({'success': False, 'error': _safe_error_message(e)}), 500
 
     @app.route('/api/tasks/start/download-descriptions', methods=['POST'])
     @requires_auth
@@ -1040,7 +1056,7 @@ def register_routes(app):
             })
         except Exception as e:
             logger.error(f"Error starting description download: {str(e)}")
-            return jsonify({'success': False, 'error': str(e)}), 500
+            return jsonify({'success': False, 'error': _safe_error_message(e)}), 500
 
     @app.route('/api/tasks/start/pipeline', methods=['POST'])
     @requires_auth
@@ -1066,7 +1082,7 @@ def register_routes(app):
             })
         except Exception as e:
             logger.error(f"Error starting pipeline: {str(e)}")
-            return jsonify({'success': False, 'error': str(e)}), 500
+            return jsonify({'success': False, 'error': _safe_error_message(e)}), 500
 
     @app.route('/api/tasks/<task_id>')
     def api_task_status(task_id):
@@ -1084,7 +1100,7 @@ def register_routes(app):
             })
         except Exception as e:
             logger.error(f"Error getting task status: {str(e)}")
-            return jsonify({'success': False, 'error': str(e)}), 500
+            return jsonify({'success': False, 'error': _safe_error_message(e)}), 500
 
     @app.route('/api/tasks')
     def api_all_tasks():
@@ -1136,7 +1152,7 @@ def register_routes(app):
                 })
         except Exception as e:
             logger.error(f"Error getting tasks: {str(e)}")
-            return jsonify({'success': False, 'error': str(e)}), 500
+            return jsonify({'success': False, 'error': _safe_error_message(e)}), 500
 
     @app.route('/api/tasks/<task_id>/cancel', methods=['POST'])
     @requires_auth
@@ -1158,7 +1174,7 @@ def register_routes(app):
                 }), 400
         except Exception as e:
             logger.error(f"Error cancelling task: {str(e)}")
-            return jsonify({'success': False, 'error': str(e)}), 500
+            return jsonify({'success': False, 'error': _safe_error_message(e)}), 500
 
     @app.route('/api/tasks/clear-completed', methods=['POST'])
     @requires_auth
@@ -1175,7 +1191,7 @@ def register_routes(app):
             })
         except Exception as e:
             logger.error(f"Error clearing tasks: {str(e)}")
-            return jsonify({'success': False, 'error': str(e)}), 500
+            return jsonify({'success': False, 'error': _safe_error_message(e)}), 500
 
     @app.route('/api/tasks/<task_id>/last-log')
     def api_task_last_log(task_id):
@@ -1256,13 +1272,13 @@ def register_routes(app):
                 logger.error(f"[api_task_last_log] Task {task_id}: Error reading log file {log_file}: {str(e)}", exc_info=True)
                 return jsonify({
                     'success': False,
-                    'error': f'Error reading log file: {str(e)}',
+                    'error': 'Error reading log file',
                     'log_file': log_file
                 }), 500
                 
         except Exception as e:
             logger.error(f"[api_task_last_log] Task {task_id}: Error getting task log: {str(e)}", exc_info=True)
-            return jsonify({'success': False, 'error': str(e)}), 500
+            return jsonify({'success': False, 'error': _safe_error_message(e)}), 500
 
     @app.route('/api/settings', methods=['GET'])
     def api_get_settings():
@@ -1283,7 +1299,7 @@ def register_routes(app):
             })
         except Exception as e:
             logger.error(f"Error getting settings: {str(e)}")
-            return jsonify({'success': False, 'error': str(e)}), 500
+            return jsonify({'success': False, 'error': _safe_error_message(e)}), 500
 
     @app.route('/api/settings', methods=['POST'])
     def api_update_settings():
@@ -1344,7 +1360,7 @@ def register_routes(app):
             })
         except Exception as e:
             logger.error(f"Error updating settings: {str(e)}")
-            return jsonify({'success': False, 'error': str(e)}), 500
+            return jsonify({'success': False, 'error': _safe_error_message(e)}), 500
 
     @app.route('/api/storage-paths', methods=['GET'])
     def api_get_storage_paths():
@@ -1370,7 +1386,7 @@ def register_routes(app):
             })
         except Exception as e:
             logger.error(f"Error getting storage paths: {str(e)}")
-            return jsonify({'success': False, 'error': str(e)}), 500
+            return jsonify({'success': False, 'error': _safe_error_message(e)}), 500
 
     @app.route('/api/storage-paths', methods=['POST'])
     def api_update_storage_paths():
@@ -1432,7 +1448,7 @@ def register_routes(app):
             })
         except Exception as e:
             logger.error(f"Error updating storage paths: {str(e)}")
-            return jsonify({'success': False, 'error': str(e)}), 500
+            return jsonify({'success': False, 'error': _safe_error_message(e)}), 500
 
     @app.route('/api/credentials', methods=['GET'])
     def api_get_credentials():
@@ -1463,7 +1479,7 @@ def register_routes(app):
             })
         except Exception as e:
             logger.error(f"Error getting credentials: {str(e)}")
-            return jsonify({'success': False, 'error': str(e)}), 500
+            return jsonify({'success': False, 'error': _safe_error_message(e)}), 500
 
     @app.route('/api/credentials', methods=['POST'])
     def api_update_credentials():
@@ -1514,7 +1530,7 @@ def register_routes(app):
                     return jsonify({'success': False, 'error': 'Failed to save credentials'}), 500
         except Exception as e:
             logger.error(f"Error updating credentials: {str(e)}")
-            return jsonify({'success': False, 'error': str(e)}), 500
+            return jsonify({'success': False, 'error': _safe_error_message(e)}), 500
 
     @app.route('/api/logs')
     def api_logs():
@@ -1546,7 +1562,7 @@ def register_routes(app):
             })
         except Exception as e:
             logger.error(f"Error getting logs: {str(e)}")
-            return jsonify({'success': False, 'error': str(e)}), 500
+            return jsonify({'success': False, 'error': _safe_error_message(e)}), 500
 
     @app.route('/api/logs/<log_name>')
     def api_log_content(log_name):
@@ -1579,11 +1595,11 @@ def register_routes(app):
                     'showing': min(lines, len(all_lines))
                 })
             except Exception as e:
-                return jsonify({'success': False, 'error': f'Error reading log: {str(e)}'}), 500
-                
+                return jsonify({'success': False, 'error': 'Error reading log'}), 500
+
         except Exception as e:
             logger.error(f"Error getting log content: {str(e)}")
-            return jsonify({'success': False, 'error': str(e)}), 500
+            return jsonify({'success': False, 'error': _safe_error_message(e)}), 500
 
     @app.route('/search')
     def search():
@@ -1661,7 +1677,7 @@ def register_routes(app):
 
         except Exception as e:
             logger.error(f"Error in search: {str(e)}", exc_info=True)
-            return jsonify({'success': False, 'error': str(e)}), 500
+            return jsonify({'success': False, 'error': _safe_error_message(e)}), 500
 
     def _simple_text_search(query: str, metadata_store, limit: int = 100) -> List[Dict]:
         """Simple fallback text search."""
@@ -1709,7 +1725,7 @@ def register_routes(app):
             })
         except Exception as e:
             logger.error(f"Error starting index build: {str(e)}", exc_info=True)
-            return jsonify({'success': False, 'error': str(e)}), 500
+            return jsonify({'success': False, 'error': _safe_error_message(e)}), 500
 
     @app.route('/api/search/rebuild-index', methods=['POST'])
     @requires_auth
@@ -1732,7 +1748,7 @@ def register_routes(app):
             })
         except Exception as e:
             logger.error(f"Error rebuilding search index: {str(e)}", exc_info=True)
-            return jsonify({'success': False, 'error': str(e)}), 500
+            return jsonify({'success': False, 'error': _safe_error_message(e)}), 500
 
     @app.errorhandler(404)
     def not_found(e):
