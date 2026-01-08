@@ -2041,8 +2041,8 @@ class DescriptionDownloader:
             logger.warning(f"WARNING: Scripts still present in HTML after processing! Attempting to remove...")
             # Use regex as last resort
             import re
-            out_html = re.sub(r'<script[^>]*>.*?</script>', '', out_html, flags=re.DOTALL | re.IGNORECASE)
-            out_html = re.sub(r'<noscript[^>]*>.*?</noscript>', '', out_html, flags=re.DOTALL | re.IGNORECASE)
+            out_html = re.sub(r'<script\b[^>]*>.*?</script[^>]*>', '', out_html, flags=re.DOTALL | re.IGNORECASE)
+            out_html = re.sub(r'<noscript\b[^>]*>.*?</noscript[^>]*>', '', out_html, flags=re.DOTALL | re.IGNORECASE)
 
         html_path.write_bytes(out_html.encode(encoding, errors="replace"))
         logger.info(f"Saved HTML page with media assets: {html_path}")

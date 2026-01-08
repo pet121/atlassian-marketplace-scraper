@@ -539,7 +539,7 @@ def register_routes(app):
 
                 # Remove ALL JavaScript to prevent React hydration and routing issues
                 html_content = re.sub(
-                    r'<script\b[^>]*>.*?</script>',
+                    r'<script\b[^>]*>.*?</script[^>]*>',
                     '',
                     html_content,
                     flags=re.DOTALL | re.IGNORECASE
