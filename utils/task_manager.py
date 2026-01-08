@@ -13,6 +13,34 @@ from utils.logger import get_logger
 
 logger = get_logger('task_manager')
 
+
+def _sanitize_for_log(value: str, max_length: int = 200) -> str:
+    """Sanitize user input for safe logging to prevent log injection.
+
+    Removes newlines and control characters that could be used to inject
+    fake log entries or manipulate log analysis tools.
+
+    Args:
+        value: The user-provided value to sanitize
+        max_length: Maximum length of the output (default 200)
+
+    Returns:
+        A sanitized string safe for logging
+    """
+    if value is None:
+        return '<None>'
+    if not isinstance(value, str):
+        value = str(value)
+    # Replace newlines that could inject fake log entries
+    sanitized = value.replace('\n', '\\n').replace('\r', '\\r')
+    # Replace other control characters
+    sanitized = ''.join(char if ord(char) >= 32 or char == '\t' else f'\\x{ord(char):02x}' for char in sanitized)
+    # Truncate to max length
+    if len(sanitized) > max_length:
+        sanitized = sanitized[:max_length] + '...[truncated]'
+    return sanitized
+
+
 # Task status file
 TASK_STATUS_FILE = os.path.join(settings.METADATA_DIR, 'task_status.json')
 
@@ -512,7 +540,7 @@ class TaskManager:
         """
         with self.lock:
             if task_id not in self.tasks:
-                logger.warning(f"Task {task_id} not found for cancellation")
+                logger.warning(f"Task {_sanitize_for_log(task_id)} not found for cancellation")
                 return False
             
             task = self.tasks[task_id]
@@ -522,10 +550,10 @@ class TaskManager:
             if current_status != 'running':
                 # If task is already completed/failed/cancelled, we can't cancel it
                 if current_status in ['completed', 'failed', 'cancelled']:
-                    logger.warning(f"Task {task_id} is already {current_status}, cannot cancel")
+                    logger.warning(f"Task {_sanitize_for_log(task_id)} is already {current_status}, cannot cancel")
                     return False
                 # For other statuses (e.g., 'pending'), mark as cancelled anyway
-                logger.info(f"Task {task_id} is not running (status: {current_status}), marking as cancelled")
+                logger.info(f"Task {_sanitize_for_log(task_id)} is not running (status: {current_status}), marking as cancelled")
                 self.tasks[task_id]['status'] = 'cancelled'
                 self.tasks[task_id]['message'] = f'Cancelled by user (was {current_status})'
                 self.tasks[task_id]['finished_at'] = datetime.now().isoformat()
@@ -546,14 +574,14 @@ class TaskManager:
                             process.wait(timeout=5)
                         except subprocess.TimeoutExpired:
                             process.kill()
-                            logger.info(f"Force killed task {task_id}")
+                            logger.info(f"Force killed task {_sanitize_for_log(task_id)}")
                     else:  # Unix-like
                         process.terminate()
                         try:
                             process.wait(timeout=5)
                         except subprocess.TimeoutExpired:
                             process.kill()
-                            logger.info(f"Force killed task {task_id}")
+                            logger.info(f"Force killed task {_sanitize_for_log(task_id)}")
                     
                     # Update task status
                     self.tasks[task_id]['status'] = 'cancelled'
@@ -565,11 +593,11 @@ class TaskManager:
                     del self.processes[task_id]
                     
                     self._save_status()
-                    logger.info(f"Task {task_id} cancelled successfully")
+                    logger.info(f"Task {_sanitize_for_log(task_id)} cancelled successfully")
                     return True
-                    
+
                 except Exception as e:
-                    logger.error(f"Error cancelling task {task_id}: {str(e)}")
+                    logger.error(f"Error cancelling task {_sanitize_for_log(task_id)}: {str(e)}")
                     # Try to kill by PID as fallback
                     pid = task.get('pid')
                     if pid:
@@ -588,10 +616,10 @@ class TaskManager:
                                 del self.processes[task_id]
                             
                             self._save_status()
-                            logger.info(f"Task {task_id} cancelled via PID")
+                            logger.info(f"Task {_sanitize_for_log(task_id)} cancelled via PID")
                             return True
                         except Exception as pid_error:
-                            logger.error(f"Failed to cancel task {task_id} via PID: {str(pid_error)}")
+                            logger.error(f"Failed to cancel task {_sanitize_for_log(task_id)} via PID: {str(pid_error)}")
                             return False
                     return False
             else:
@@ -606,7 +634,7 @@ class TaskManager:
                                 os.kill(pid, 0)
                             except ProcessLookupError:
                                 # Process already finished
-                                logger.warning(f"Task {task_id} process (PID {pid}) already finished")
+                                logger.warning(f"Task {_sanitize_for_log(task_id)} process (PID {pid}) already finished")
                                 self.tasks[task_id]['status'] = 'cancelled'
                                 self.tasks[task_id]['message'] = 'Cancelled by user (process already finished)'
                                 self.tasks[task_id]['finished_at'] = datetime.now().isoformat()
@@ -614,7 +642,7 @@ class TaskManager:
                                 return True
                             except PermissionError:
                                 # Process exists but we don't have permission
-                                logger.warning(f"Task {task_id} process (PID {pid}) exists but no permission to kill")
+                                logger.warning(f"Task {_sanitize_for_log(task_id)} process (PID {pid}) exists but no permission to kill")
                                 # Mark as cancelled anyway
                                 self.tasks[task_id]['status'] = 'cancelled'
                                 self.tasks[task_id]['message'] = 'Cancelled by user (marked as cancelled)'
@@ -636,30 +664,30 @@ class TaskManager:
                             del self.processes[task_id]
                         
                         self._save_status()
-                        logger.info(f"Task {task_id} cancelled via PID")
+                        logger.info(f"Task {_sanitize_for_log(task_id)} cancelled via PID")
                         return True
                     except ProcessLookupError:
                         # Process already finished
-                        logger.warning(f"Task {task_id} process (PID {pid}) already finished")
+                        logger.warning(f"Task {_sanitize_for_log(task_id)} process (PID {pid}) already finished")
                         self.tasks[task_id]['status'] = 'cancelled'
                         self.tasks[task_id]['message'] = 'Cancelled by user (process already finished)'
                         self.tasks[task_id]['finished_at'] = datetime.now().isoformat()
                         self._save_status()
                         return True
                     except Exception as e:
-                        logger.error(f"Failed to cancel task {task_id} via PID: {str(e)}")
+                        logger.error(f"Failed to cancel task {_sanitize_for_log(task_id)} via PID: {str(e)}")
                         # Even if we can't kill the process, mark task as cancelled
                         # This handles cases where process is already dead or we lost track of it
                         self.tasks[task_id]['status'] = 'cancelled'
                         self.tasks[task_id]['message'] = f'Cancelled by user (marked as cancelled, error: {str(e)})'
                         self.tasks[task_id]['finished_at'] = datetime.now().isoformat()
                         self._save_status()
-                        logger.info(f"Task {task_id} marked as cancelled despite error")
+                        logger.info(f"Task {_sanitize_for_log(task_id)} marked as cancelled despite error")
                         return True
                 else:
                     # No PID available, but task is marked as running
                     # This can happen if task was loaded from file but process was lost
-                    logger.warning(f"Task {task_id} has no process object or PID, but status is 'running'. Marking as cancelled.")
+                    logger.warning(f"Task {_sanitize_for_log(task_id)} has no process object or PID, but status is 'running'. Marking as cancelled.")
                     self.tasks[task_id]['status'] = 'cancelled'
                     self.tasks[task_id]['message'] = 'Cancelled by user (process not found, likely already finished)'
                     self.tasks[task_id]['finished_at'] = datetime.now().isoformat()

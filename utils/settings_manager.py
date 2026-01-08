@@ -9,6 +9,33 @@ from utils.logger import get_logger
 logger = get_logger('settings_manager')
 
 
+def _sanitize_for_log(value: str, max_length: int = 200) -> str:
+    """Sanitize user input for safe logging to prevent log injection.
+
+    Removes newlines and control characters that could be used to inject
+    fake log entries or manipulate log analysis tools.
+
+    Args:
+        value: The user-provided value to sanitize
+        max_length: Maximum length of the output (default 200)
+
+    Returns:
+        A sanitized string safe for logging
+    """
+    if value is None:
+        return '<None>'
+    if not isinstance(value, str):
+        value = str(value)
+    # Replace newlines that could inject fake log entries
+    sanitized = value.replace('\n', '\\n').replace('\r', '\\r')
+    # Replace other control characters
+    sanitized = ''.join(char if ord(char) >= 32 or char == '\t' else f'\\x{ord(char):02x}' for char in sanitized)
+    # Truncate to max length
+    if len(sanitized) > max_length:
+        sanitized = sanitized[:max_length] + '...[truncated]'
+    return sanitized
+
+
 def get_env_file_path() -> str:
     """Get path to .env file."""
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -101,7 +128,7 @@ def update_env_setting(key: str, value: str) -> bool:
         with open(env_path, 'w', encoding='utf-8') as f:
             f.writelines(new_lines)
         
-        logger.info(f"Updated {key} in .env file")
+        logger.info(f"Updated {_sanitize_for_log(key)} in .env file")
         return True
         
     except Exception as e:

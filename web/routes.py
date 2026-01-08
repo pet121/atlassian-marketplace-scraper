@@ -84,6 +84,33 @@ def _safe_error_message(e: Exception) -> str:  # noqa: ARG001 - e intentionally 
     return "An internal error occurred. Please try again later."
 
 
+def _sanitize_for_log(value: str, max_length: int = 200) -> str:
+    """Sanitize user input for safe logging to prevent log injection.
+
+    Removes newlines and control characters that could be used to inject
+    fake log entries or manipulate log analysis tools.
+
+    Args:
+        value: The user-provided value to sanitize
+        max_length: Maximum length of the output (default 200)
+
+    Returns:
+        A sanitized string safe for logging
+    """
+    if value is None:
+        return '<None>'
+    if not isinstance(value, str):
+        value = str(value)
+    # Remove newlines and carriage returns (log injection vectors)
+    sanitized = value.replace('\n', '\\n').replace('\r', '\\r')
+    # Remove other control characters
+    sanitized = ''.join(char if ord(char) >= 32 or char == '\t' else f'\\x{ord(char):02x}' for char in sanitized)
+    # Truncate if too long
+    if len(sanitized) > max_length:
+        sanitized = sanitized[:max_length] + '...[truncated]'
+    return sanitized
+
+
 from config import settings
 from config.products import PRODUCTS, PRODUCT_LIST
 from scraper.metadata_store import MetadataStore
@@ -143,14 +170,14 @@ def register_routes(app):
                 page = int(request.args.get('page', 1))
                 page = max(1, page)  # Minimum page is 1
             except (ValueError, TypeError):
-                logger.warning(f"Invalid page parameter: {request.args.get('page')}")
+                logger.warning(f"Invalid page parameter: {_sanitize_for_log(request.args.get('page'))}")
                 page = 1
 
             try:
                 per_page = int(request.args.get('per_page', 50))
                 per_page = max(1, min(100, per_page))  # Between 1 and 100
             except (ValueError, TypeError):
-                logger.warning(f"Invalid per_page parameter: {request.args.get('per_page')}")
+                logger.warning(f"Invalid per_page parameter: {_sanitize_for_log(request.args.get('per_page'))}")
                 per_page = 50
 
             # Build filters
@@ -271,7 +298,7 @@ def register_routes(app):
             )
 
         except Exception as e:
-            logger.error(f"Error loading app details for {addon_key}: {str(e)}")
+            logger.error(f"Error loading app details for {_sanitize_for_log(addon_key)}: {str(e)}")
             return render_template('error.html', error=_safe_error_message(e)), 500
 
     @app.route('/apps/<addon_key>/description/assets/<path:asset_path>')
@@ -284,7 +311,7 @@ def register_routes(app):
 
             # Security: Validate asset_path doesn't contain path traversal
             if '..' in asset_path or '\x00' in asset_path:
-                logger.warning(f"Path traversal attempt in assets: {asset_path}")
+                logger.warning(f"Path traversal attempt in assets: {_sanitize_for_log(asset_path)}")
                 return render_template('error.html', error="Invalid path"), 400
 
             # Only allow safe file extensions for assets
@@ -302,7 +329,7 @@ def register_routes(app):
             try:
                 asset_file = _safe_path_join(base_assets_dir, asset_path)
             except ValueError as e:
-                logger.warning(f"Path traversal attempt in assets: {asset_path} - {e}")
+                logger.warning(f"Path traversal attempt in assets: {_sanitize_for_log(asset_path)} - {e}")
                 return render_template('error.html', error="Access denied"), 403
 
             if os.path.exists(asset_file) and os.path.isfile(asset_file):
@@ -331,7 +358,7 @@ def register_routes(app):
             else:
                 return render_template('error.html', error="Asset not found"), 404
         except Exception as e:
-            logger.error(f"Error serving asset {addon_key}/{asset_path}: {str(e)}")
+            logger.error(f"Error serving asset {_sanitize_for_log(addon_key)}/{_sanitize_for_log(asset_path)}: {str(e)}")
             return render_template('error.html', error=_safe_error_message(e)), 500
 
     @app.route('/apps/<addon_key>/logo')
@@ -368,7 +395,7 @@ def register_routes(app):
             # Logo not found - return 404
             return '', 404
         except Exception as e:
-            logger.error(f"Error serving logo for {addon_key}: {str(e)}")
+            logger.error(f"Error serving logo for {_sanitize_for_log(addon_key)}: {str(e)}")
             return '', 500
 
     @app.route('/apps/<addon_key>/description/<path:filename>')
@@ -413,7 +440,7 @@ def register_routes(app):
                 real_path = os.path.realpath(description_path)
 
                 if not real_path.startswith(base_dir):
-                    logger.warning(f"Path traversal attempt detected: {filename} -> {real_path}")
+                    logger.warning(f"Path traversal attempt detected: {_sanitize_for_log(filename)} -> {_sanitize_for_log(real_path)}")
                     return render_template('error.html', error="Access denied"), 403
             else:
                 # Security: sanitize filename (remove any path components)
@@ -437,7 +464,7 @@ def register_routes(app):
                 real_path = os.path.realpath(description_path)
 
                 if not real_path.startswith(base_dir):
-                    logger.warning(f"Path traversal attempt detected: {filename} -> {real_path}")
+                    logger.warning(f"Path traversal attempt detected: {_sanitize_for_log(filename)} -> {_sanitize_for_log(real_path)}")
                     return render_template('error.html', error="Access denied"), 403
                 
                 # Also check full_page directory
@@ -489,7 +516,7 @@ def register_routes(app):
                         # Re-encode to UTF-8
                         html_content = html_content.encode('utf-8', errors='replace').decode('utf-8')
                 except Exception as e:
-                    logger.error(f"Error reading HTML file {description_path}: {str(e)}")
+                    logger.error(f"Error reading HTML file {_sanitize_for_log(description_path)}: {str(e)}")
                     return render_template('error.html', error="Error reading description"), 500
 
                 # Ensure DOCTYPE is present (prevents Quirks Mode)
@@ -679,7 +706,7 @@ def register_routes(app):
                 return Response(html_content, mimetype='text/html; charset=utf-8')
 
         except Exception as e:
-            logger.error(f"Error loading description for {safe_addon_key}/{filename}: {str(e)}")
+            logger.error(f"Error loading description for {_sanitize_for_log(safe_addon_key)}/{_sanitize_for_log(filename)}: {str(e)}")
             return render_template('error.html', error=_safe_error_message(e)), 500
 
     @app.route('/descriptions')
@@ -1201,7 +1228,7 @@ def register_routes(app):
             log_file = task_mgr.get_task_log_file(task_id)
             
             if not log_file:
-                logger.warning(f"[api_task_last_log] Task {task_id}: No log file path found (script may not be mapped)")
+                logger.warning(f"[api_task_last_log] Task {_sanitize_for_log(task_id)}: No log file path found (script may not be mapped)")
                 return jsonify({
                     'success': True,
                     'log_line': None,
@@ -1210,7 +1237,7 @@ def register_routes(app):
                 })
             
             if not os.path.exists(log_file):
-                logger.warning(f"[api_task_last_log] Task {task_id}: Log file does not exist: {log_file}")
+                logger.warning(f"[api_task_last_log] Task {_sanitize_for_log(task_id)}: Log file does not exist: {log_file}")
                 return jsonify({
                     'success': True,
                     'log_line': None,
@@ -1227,7 +1254,7 @@ def register_routes(app):
                     file_size = f.tell()
                     
                     if file_size == 0:
-                        logger.warning(f"[api_task_last_log] Task {task_id}: Log file is empty: {log_file}")
+                        logger.warning(f"[api_task_last_log] Task {_sanitize_for_log(task_id)}: Log file is empty: {log_file}")
                         return jsonify({
                             'success': True,
                             'log_line': None,
@@ -1242,10 +1269,10 @@ def register_routes(app):
                     
                     # Find last line
                     lines = chunk.splitlines()
-                    logger.debug(f"[api_task_last_log] Task {task_id}: Log file size: {file_size} bytes, lines found: {len(lines)}")
+                    logger.debug(f"[api_task_last_log] Task {_sanitize_for_log(task_id)}: Log file size: {file_size} bytes, lines found: {len(lines)}")
                     if lines:
                         last_line = lines[-1].strip()
-                        logger.debug(f"[api_task_last_log] Task {task_id}: Found last line, length: {len(last_line)}")
+                        logger.debug(f"[api_task_last_log] Task {_sanitize_for_log(task_id)}: Found last line, length: {len(last_line)}")
                         # Try to extract timestamp from log line
                         timestamp = None
                         if last_line:
@@ -1261,7 +1288,7 @@ def register_routes(app):
                             'timestamp': timestamp
                         })
                     else:
-                        logger.warning(f"[api_task_last_log] Task {task_id}: No lines found in log file chunk")
+                        logger.warning(f"[api_task_last_log] Task {_sanitize_for_log(task_id)}: No lines found in log file chunk")
                         return jsonify({
                             'success': True,
                             'log_line': None,
@@ -1269,7 +1296,7 @@ def register_routes(app):
                             'debug': 'No lines found in log file'
                         })
             except Exception as e:
-                logger.error(f"[api_task_last_log] Task {task_id}: Error reading log file {log_file}: {str(e)}", exc_info=True)
+                logger.error(f"[api_task_last_log] Task {_sanitize_for_log(task_id)}: Error reading log file {log_file}: {str(e)}", exc_info=True)
                 return jsonify({
                     'success': False,
                     'error': 'Error reading log file',
@@ -1277,7 +1304,7 @@ def register_routes(app):
                 }), 500
                 
         except Exception as e:
-            logger.error(f"[api_task_last_log] Task {task_id}: Error getting task log: {str(e)}", exc_info=True)
+            logger.error(f"[api_task_last_log] Task {_sanitize_for_log(task_id)}: Error getting task log: {str(e)}", exc_info=True)
             return jsonify({'success': False, 'error': _safe_error_message(e)}), 500
 
     @app.route('/api/settings', methods=['GET'])
@@ -1638,7 +1665,7 @@ def register_routes(app):
                     # Check if index exists
                     if not search_index.needs_rebuild():
                         # Index exists, use Whoosh
-                        logger.info(f"Using Whoosh search for query: '{query}'")
+                        logger.info(f"Using Whoosh search for query: '{_sanitize_for_log(query)}'")
                         results = search_index.search(query, store, limit=100)
                         search_method = 'whoosh'
                         logger.info(f"Whoosh search returned {len(results)} results")
@@ -1654,7 +1681,7 @@ def register_routes(app):
             if not use_whoosh or len(results) == 0:
                 try:
                     from search_enhanced import EnhancedSearch
-                    logger.info(f"Using Enhanced search for query: '{query}'")
+                    logger.info(f"Using Enhanced search for query: '{_sanitize_for_log(query)}'")
                     enhanced_search = EnhancedSearch()
                     results = enhanced_search.search_all(query, store, limit=100)
                     search_method = 'enhanced'
@@ -1662,7 +1689,7 @@ def register_routes(app):
                 except Exception as e:
                     logger.error(f"Enhanced search failed: {str(e)}", exc_info=True)
                     # Last resort: simple text search
-                    logger.info(f"Using simple text search for query: '{query}'")
+                    logger.info(f"Using simple text search for query: '{_sanitize_for_log(query)}'")
                     results = _simple_text_search(query, store, limit=100)
                     search_method = 'simple'
                     logger.info(f"Simple search returned {len(results)} results")

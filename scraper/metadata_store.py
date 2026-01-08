@@ -11,6 +11,33 @@ from utils.logger import get_logger
 logger = get_logger('scraper')
 
 
+def _sanitize_for_log(value: str, max_length: int = 200) -> str:
+    """Sanitize user input for safe logging to prevent log injection.
+
+    Removes newlines and control characters that could be used to inject
+    fake log entries or manipulate log analysis tools.
+
+    Args:
+        value: The user-provided value to sanitize
+        max_length: Maximum length of the output (default 200)
+
+    Returns:
+        A sanitized string safe for logging
+    """
+    if value is None:
+        return '<None>'
+    if not isinstance(value, str):
+        value = str(value)
+    # Replace newlines that could inject fake log entries
+    sanitized = value.replace('\n', '\\n').replace('\r', '\\r')
+    # Replace other control characters
+    sanitized = ''.join(char if ord(char) >= 32 or char == '\t' else f'\\x{ord(char):02x}' for char in sanitized)
+    # Truncate to max length
+    if len(sanitized) > max_length:
+        sanitized = sanitized[:max_length] + '...[truncated]'
+    return sanitized
+
+
 class MetadataStoreJSON:
     """Handles storage and retrieval of app and version metadata."""
 
@@ -41,7 +68,7 @@ class MetadataStoreJSON:
                     return json.load(f)
             return None
         except Exception as e:
-            logger.error(f"Error reading {file_path}: {str(e)}")
+            logger.error(f"Error reading {_sanitize_for_log(file_path)}: {str(e)}")
             return None
 
     def _write_json(self, file_path, data):
@@ -52,7 +79,7 @@ class MetadataStoreJSON:
                 json.dump(data, f, indent=2, ensure_ascii=False)
             return True
         except Exception as e:
-            logger.error(f"Error writing {file_path}: {str(e)}")
+            logger.error(f"Error writing {_sanitize_for_log(file_path)}: {str(e)}")
             return False
 
     def save_app(self, app: App):

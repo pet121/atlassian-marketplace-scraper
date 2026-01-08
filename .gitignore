@@ -8,6 +8,9 @@
 
 # Analysis and documentation (local only)
 docs/
+codeql-db*/
+codeql-*.csv
+codeql-*.sarif
 
 # Python
 __pycache__/
