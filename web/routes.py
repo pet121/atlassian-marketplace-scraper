@@ -2,8 +2,22 @@
 
 import os
 import re
+import html
 from typing import List, Dict
 from flask import render_template, jsonify, request, send_file, redirect, url_for
+
+
+def _sanitize_addon_key(addon_key: str) -> str:
+    """Sanitize addon_key for safe use in HTML and file paths.
+
+    Validates format and escapes for HTML output.
+    Valid addon_key format: alphanumeric, dots, hyphens, underscores.
+    """
+    if not addon_key or not re.match(r'^[\w.\-]+$', addon_key):
+        return ''
+    return html.escape(addon_key)
+
+
 from config import settings
 from config.products import PRODUCTS, PRODUCT_LIST
 from scraper.metadata_store import MetadataStore
@@ -301,6 +315,11 @@ def register_routes(app):
             if '..' in addon_key or '/' in addon_key or '\\' in addon_key:
                 return render_template('error.html', error="Invalid addon key"), 400
 
+            # Security: Sanitize addon_key for HTML output to prevent XSS
+            safe_addon_key = _sanitize_addon_key(addon_key)
+            if not safe_addon_key:
+                return render_template('error.html', error="Invalid addon key format"), 400
+
             # Handle full_page/index.html path
             if filename.startswith('full_page/'):
                 filename = filename.replace('full_page/', '', 1)
@@ -522,10 +541,10 @@ def register_routes(app):
                 elif '</HEAD>' in html_content:
                     html_content = html_content.replace('</HEAD>', offline_script + '</HEAD>', 1)
 
-                # Inject navigation back to app detail
+                # Inject navigation back to app detail (use sanitized key for XSS prevention)
                 nav_html = f'''
                 <div style="background: #fff; padding: 1rem; margin-bottom: 1rem; border-bottom: 2px solid #0f5ef7; position: sticky; top: 0; z-index: 1000;">
-                    <a href="/apps/{addon_key}" style="color: #0f5ef7; text-decoration: none; font-weight: bold;">
+                    <a href="/apps/{safe_addon_key}" style="color: #0f5ef7; text-decoration: none; font-weight: bold;">
                         ← Back to App Details
                     </a>
                 </div>
@@ -533,25 +552,25 @@ def register_routes(app):
 
                 # Insert navigation after body tag
                 html_content = html_content.replace('<body>', '<body>' + nav_html)
-                
-                # Fix asset paths to use Flask routes
+
+                # Fix asset paths to use Flask routes (use sanitized key for XSS prevention)
                 # Replace local asset paths with Flask routes
                 # Handle ./assets/ paths (strip the ./ prefix)
                 html_content = re.sub(
                     r'(src|href)=["\']\./assets/([^"\']+)["\']',
-                    lambda m: f'{m.group(1)}="/apps/{addon_key}/description/assets/{m.group(2)}"',
+                    lambda m: f'{m.group(1)}="/apps/{safe_addon_key}/description/assets/{m.group(2)}"',
                     html_content
                 )
                 # Handle assets/ paths (no ./ prefix)
                 html_content = re.sub(
                     r'(src|href)=["\']assets/([^"\']+)["\']',
-                    lambda m: f'{m.group(1)}="/apps/{addon_key}/description/assets/{m.group(2)}"',
+                    lambda m: f'{m.group(1)}="/apps/{safe_addon_key}/description/assets/{m.group(2)}"',
                     html_content
                 )
                 # Handle other relative paths (but not ones we already processed)
                 html_content = re.sub(
                     r'(src|href)=["\'](?!https?://|/|#|javascript:|data:|\./|assets/)([^"\']+)["\']',
-                    lambda m: f'{m.group(1)}="/apps/{addon_key}/description/assets/{m.group(2)}"',
+                    lambda m: f'{m.group(1)}="/apps/{safe_addon_key}/description/assets/{m.group(2)}"',
                     html_content
                 )
 
@@ -579,10 +598,10 @@ def register_routes(app):
                         # Insert after html tag
                         html_content = re.sub(r'(<html[^>]*>)', r'\1\n<head>\n    <meta charset="UTF-8">\n</head>', html_content, count=1)
 
-                # Inject navigation back to app detail
+                # Inject navigation back to app detail (use sanitized key for XSS prevention)
                 nav_html = f'''
                 <div style="background: #fff; padding: 1rem; margin-bottom: 1rem; border-bottom: 2px solid #0f5ef7;">
-                    <a href="/apps/{addon_key}" style="color: #0f5ef7; text-decoration: none;">
+                    <a href="/apps/{safe_addon_key}" style="color: #0f5ef7; text-decoration: none;">
                         ← Back to App Details
                     </a>
                 </div>
@@ -596,7 +615,7 @@ def register_routes(app):
                 return Response(html_content, mimetype='text/html; charset=utf-8')
 
         except Exception as e:
-            logger.error(f"Error loading description for {addon_key}/{filename}: {str(e)}")
+            logger.error(f"Error loading description for {safe_addon_key}/{filename}: {str(e)}")
             return render_template('error.html', error=str(e)), 500
 
     @app.route('/descriptions')
