@@ -161,7 +161,7 @@ class SearchIndex:
                         pass
         
         hash_str = '|'.join(file_hashes)
-        return hashlib.md5(hash_str.encode('utf-8')).hexdigest()
+        return hashlib.md5(hash_str.encode('utf-8'), usedforsecurity=False).hexdigest()
     
     def load_index(self) -> bool:
         """Load index from cache file."""

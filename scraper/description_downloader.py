@@ -87,7 +87,7 @@ def _safe_filename_from_url(url: str, content_type: Optional[str] = None) -> str
             base = f"{base}{ext}"
 
     # Collision protection: add short URL hash
-    h = hashlib.sha1(url.encode("utf-8")).hexdigest()[:10]
+    h = hashlib.sha1(url.encode("utf-8"), usedforsecurity=False).hexdigest()[:10]
     root, ext = os.path.splitext(base)
     base = f"{root}_{h}{ext}"
 
@@ -1403,7 +1403,7 @@ class DescriptionDownloader:
                 ext = mimetypes.guess_extension(
                     requests.head(abs_url, timeout=10).headers.get('content-type', '')
                 ) or '.bin'
-                filename = hashlib.md5(abs_url.encode()).hexdigest()[:16] + ext
+                filename = hashlib.md5(abs_url.encode(), usedforsecurity=False).hexdigest()[:16] + ext
             else:
                 # Sanitize filename
                 filename = re.sub(r'[<>:"/\\|?*]', '_', filename)
