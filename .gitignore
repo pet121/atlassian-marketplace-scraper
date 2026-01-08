@@ -6,7 +6,7 @@
 .env
 .env.local
 
-# Analysis and documentation (local only)
+# Analysis (local only)
 docs/
 codeql-db*/
 codeql-*.csv
@@ -15,47 +15,25 @@ codeql-*.sarif
 # Python
 __pycache__/
 *.py[cod]
-*$py.class
-*.so
-.Python
 venv/
 env/
-ENV/
 
 # IDE
 .vscode/
 .idea/
 .claude/
-*.swp
-*.swo
 
 # Logs
 *.log
-*.log.*
 
-# Temporary files and drafts
-*.txt
-!requirements.txt
+# Temporary files
 *.tmp
-*.commit
-commit_message*
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Data - downloaded binaries and metadata (never commit)
-# Ignore all files in data directories but keep .gitkeep for directory structure
-data/binaries/*
-!data/binaries/.gitkeep
-data/binaries/*/*
-data/metadata/*
-!data/metadata/.gitkeep
-!data/metadata/checkpoints/
-data/metadata/checkpoints/*
-!data/metadata/checkpoints/.gitkeep
-!data/metadata/versions/
-data/metadata/versions/*
-!data/metadata/versions/.gitkeep
+# Data - downloaded binaries and metadata (large files, never commit)
+data/binaries/
+data/metadata/
 *.db
-
