@@ -111,6 +111,47 @@ def _sanitize_for_log(value: str, max_length: int = 200) -> str:
     return sanitized
 
 
+def _sanitize_html_for_display(html_content: str) -> str:
+    """Sanitize HTML content for safe display in templates.
+
+    Removes dangerous tags (script, style, iframe, etc.) while keeping
+    safe formatting tags (ul, li, p, br, strong, em, etc.).
+
+    Args:
+        html_content: Raw HTML content to sanitize
+
+    Returns:
+        Sanitized HTML safe for rendering with |safe filter
+    """
+    if not html_content:
+        return ''
+
+    # Remove dangerous tags and their content
+    dangerous_patterns = [
+        r'<script\b[^>]*>.*?</script[^>]*>',
+        r'<style\b[^>]*>.*?</style[^>]*>',
+        r'<iframe\b[^>]*>.*?</iframe[^>]*>',
+        r'<object\b[^>]*>.*?</object[^>]*>',
+        r'<embed\b[^>]*>.*?</embed[^>]*>',
+        r'<link\b[^>]*>',
+        r'<meta\b[^>]*>',
+    ]
+
+    result = html_content
+    for pattern in dangerous_patterns:
+        result = re.sub(pattern, '', result, flags=re.DOTALL | re.IGNORECASE)
+
+    # Remove event handlers (onclick, onerror, etc.)
+    result = re.sub(r'\s+on\w+\s*=\s*["\'][^"\']*["\']', '', result, flags=re.IGNORECASE)
+    result = re.sub(r'\s+on\w+\s*=\s*\S+', '', result, flags=re.IGNORECASE)
+
+    # Remove javascript: and data: URLs in href/src attributes
+    result = re.sub(r'(href|src)\s*=\s*["\']?\s*javascript:[^"\'>\s]*["\']?', r'\1=""', result, flags=re.IGNORECASE)
+    result = re.sub(r'(href|src)\s*=\s*["\']?\s*data:[^"\'>\s]*["\']?', r'\1=""', result, flags=re.IGNORECASE)
+
+    return result
+
+
 from config import settings
 from config.products import PRODUCTS, PRODUCT_LIST
 from scraper.metadata_store import MetadataStore
@@ -234,6 +275,11 @@ def register_routes(app):
                 key=lambda v: v.get('release_date', ''),
                 reverse=True
             )
+
+            # Sanitize release notes HTML for safe display
+            for version in versions:
+                if version.get('release_notes'):
+                    version['release_notes'] = _sanitize_html_for_display(version['release_notes'])
 
             # Check if description exists (use safe path join)
             try:
