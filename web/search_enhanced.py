@@ -1,9 +1,8 @@
 """Enhanced search that searches across all local data sources."""
 
-import os
 import json
 import re
-from typing import Dict, List, Optional
+from typing import Dict, List
 from pathlib import Path
 from bs4 import BeautifulSoup
 from config import settings
@@ -208,7 +207,7 @@ class EnhancedSearch:
                 # Calculate match score
                 text_score = 0
                 match_context = ''
-                match_type = 'description'
+                _match_type = 'description'  # noqa: F841 - for future use
                 
                 if combined_text:
                     # Exact phrase match

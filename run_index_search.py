@@ -1,7 +1,6 @@
 """Script to build search index for plugin descriptions and release notes."""
 
 import sys
-import os
 from pathlib import Path
 
 # Fix encoding for Windows console (cp1252 doesn't support Unicode)

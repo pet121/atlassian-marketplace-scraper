@@ -2,7 +2,6 @@
 
 import os
 import sys
-import subprocess
 from flask import Flask
 from flask_wtf.csrf import CSRFProtect
 from config import settings
@@ -148,7 +147,7 @@ def create_app():
     app.config['WTF_CSRF_ENABLED'] = True
     app.config['WTF_CSRF_TIME_LIMIT'] = None  # Tokens don't expire (rely on session timeout)
     app.config['WTF_CSRF_SSL_STRICT'] = not settings.FLASK_DEBUG  # Strict HTTPS in production
-    csrf = CSRFProtect(app)
+    _csrf = CSRFProtect(app)  # noqa: F841 - instantiated for side effects
 
     # Security headers
     @app.after_request

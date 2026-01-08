@@ -1,9 +1,7 @@
 """Settings manager for reading and updating .env file."""
 
 import os
-import re
-from typing import Dict, Optional
-from config import settings
+from typing import Dict
 from utils.logger import get_logger
 
 logger = get_logger('settings_manager')

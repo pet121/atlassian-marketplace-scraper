@@ -1,7 +1,6 @@
 """Metadata storage and retrieval using SQLite database."""
 
 import json
-import os
 import sqlite3
 from typing import List, Dict, Optional
 from config import settings

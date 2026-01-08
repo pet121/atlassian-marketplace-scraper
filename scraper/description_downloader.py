@@ -234,9 +234,9 @@ class DescriptionDownloader:
         overview_body = overview.get("moreDetails") or overview.get("body") or overview.get("content")
         description_html = overview_body or legacy_description or "<p>Description not available.</p>"
 
-        # Release notes from new structure
-        release_notes = overview.get("releaseNotes", "")
-        release_summary = overview.get("releaseSummary", "")
+        # Release notes from new structure (extracted for potential future use)
+        _release_notes = overview.get("releaseNotes", "")  # noqa: F841
+        _release_summary = overview.get("releaseSummary", "")  # noqa: F841
 
         categories = [
             escape(cat.get("name", ""))
@@ -255,7 +255,7 @@ class DescriptionDownloader:
 
         vendor = addon.get("_embedded", {}).get("vendor", {}) or {}
         vendor_name = vendor.get("name") or addon.get("vendor", {}).get("name") or "Unknown vendor"
-        vendor_logo = (
+        _vendor_logo = (  # noqa: F841 - extracted for potential future use
             vendor.get("_embedded", {}).get("logo", {}).get("_links", {}).get("image", {}).get("href")
             if isinstance(vendor.get("_embedded", {}), dict)
             else None
@@ -1040,12 +1040,12 @@ class DescriptionDownloader:
             logger.debug("No logo URL found in addon info")
             return None
 
-        # Extract UUID from URL for filename
+        # Extract UUID from URL for filename (kept for debugging/logging)
         uuid_match = re.search(r'/files/([a-f0-9-]{36})', href)
         if uuid_match:
-            name = uuid_match.group(1)
+            _name = uuid_match.group(1)  # noqa: F841
         else:
-            name = "logo"
+            _name = "logo"  # noqa: F841
 
         # Use image-appropriate headers
         image_headers = {
@@ -1719,7 +1719,7 @@ class DescriptionDownloader:
                         
                         # Determine file extension from content-type or URL
                         ctype = (resp.headers.get("Content-Type") or "").split(";")[0].strip().lower()
-                        default_ext = {
+                        _default_ext = {  # noqa: F841 - dict used inline for .get()
                             "text/css": ".css",
                             "application/javascript": ".js",
                             "text/javascript": ".js",

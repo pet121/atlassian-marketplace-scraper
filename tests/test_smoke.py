@@ -5,11 +5,9 @@ Smoke tests verify that basic functionality works and the system is not broken.
 These tests should run quickly and cover critical paths.
 """
 
-import os
 import sys
 import unittest
 from pathlib import Path
-from typing import List, Dict
 
 # Add project root to path
 project_root = Path(__file__).parent.parent

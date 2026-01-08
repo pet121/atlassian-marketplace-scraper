@@ -1,14 +1,12 @@
 """Search index using Whoosh full-text search library."""
 
-import os
 import json
 from typing import Dict, List, Optional
 from pathlib import Path
 from bs4 import BeautifulSoup
 from whoosh import index
 from whoosh.fields import Schema, TEXT, ID, KEYWORD
-from whoosh.qparser import QueryParser, MultifieldParser, OrGroup
-from whoosh.query import And, Or, Term, Wildcard
+from whoosh.qparser import MultifieldParser, OrGroup
 from config import settings
 from utils.logger import get_logger
 

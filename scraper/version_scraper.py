@@ -1,13 +1,12 @@
 """Version scraper for fetching app version history."""
 
-from typing import List, Optional, Dict
+from typing import List, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import Lock
-from config import settings
 from scraper.marketplace_api import MarketplaceAPI
 from scraper.marketplace_api_v3 import MarketplaceAPIv3
 from scraper.metadata_store import MetadataStore
-from scraper.filters import filter_by_date, filter_by_hosting
+from scraper.filters import filter_by_date
 from models.version import Version
 from utils.logger import get_logger
 

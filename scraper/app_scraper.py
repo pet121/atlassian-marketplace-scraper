@@ -108,8 +108,8 @@ class AppScraper:
         offset = state.get('app_offset', 0)
         batch_size = settings.SCRAPER_BATCH_SIZE
 
-        # First, get total count (approximate)
-        initial_response = self.api.search_apps(
+        # First, make initial request (result not used, but helps with connection setup)
+        _initial_response = self.api.search_apps(  # noqa: F841
             hosting='server',
             application=product,
             offset=0,

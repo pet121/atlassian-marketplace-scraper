@@ -1,7 +1,6 @@
 """Data model for app versions."""
 
 from dataclasses import dataclass, field, asdict
-from datetime import datetime
 from typing import Dict, List, Optional
 
 

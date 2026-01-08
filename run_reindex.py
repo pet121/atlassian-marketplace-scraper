@@ -52,7 +52,7 @@ def main():
     try:
         print("🔄 Starting reindex process...")
         print()
-        stats = reindexer.reindex(verbose=True)
+        _stats = reindexer.reindex(verbose=True)  # noqa: F841 - stats printed by reindex()
 
         # Optionally clean orphaned files
         if clean_orphaned:

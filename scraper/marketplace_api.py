@@ -2,7 +2,7 @@
 
 import requests
 import time
-from typing import List, Dict, Optional
+from typing import Optional
 from config import settings
 from utils.rate_limiter import RateLimiter
 from utils.logger import get_logger

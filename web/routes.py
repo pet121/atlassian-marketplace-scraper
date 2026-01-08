@@ -4,7 +4,7 @@ import os
 import re
 import html
 from typing import List, Dict
-from flask import render_template, jsonify, request, send_file, redirect, url_for
+from flask import render_template, jsonify, request, send_file
 
 
 def _sanitize_addon_key(addon_key: str) -> str:

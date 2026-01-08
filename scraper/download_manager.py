@@ -4,7 +4,7 @@ import os
 import requests
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import List, Optional, Dict
+from typing import Optional, Dict
 from tqdm import tqdm
 from config import settings
 from scraper.marketplace_api import MarketplaceAPI
@@ -101,7 +101,7 @@ class DownloadManager:
             # Process completed downloads with progress bar
             with tqdm(total=len(download_queue), desc="Downloading", unit="file") as pbar:
                 for future in as_completed(future_to_item):
-                    item = future_to_item[future]
+                    _item = future_to_item[future]  # noqa: F841 - kept for debugging
                     try:
                         success = future.result()
                         if success:

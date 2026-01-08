@@ -4,7 +4,6 @@ API-level smoke tests for search functionality.
 These tests verify that the search API endpoints work correctly.
 """
 
-import os
 import sys
 import unittest
 from pathlib import Path
@@ -13,7 +12,6 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from config import settings
 from scraper.metadata_store import MetadataStore
 
 

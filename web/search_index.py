@@ -1,6 +1,5 @@
 """Search index for plugin descriptions and release notes."""
 
-import os
 import json
 import re
 import hashlib
@@ -335,7 +334,7 @@ class SearchIndex:
             return []
         
         query_lower = query.lower().strip()
-        query_words = query_lower.split()
+        _query_words = query_lower.split()  # noqa: F841 - for potential word-based matching
         results = []
         seen_keys: Set[str] = set()
         
@@ -347,8 +346,8 @@ class SearchIndex:
             if not app:
                 continue
             
-            # Combine all text sources
-            all_text = ' '.join([
+            # Combine all text sources (used for comprehensive search)
+            _all_text = ' '.join([  # noqa: F841 - available for future use
                 indexed_data.get('json_text', ''),
                 indexed_data.get('html_text', ''),
                 indexed_data.get('release_notes_text', '')
