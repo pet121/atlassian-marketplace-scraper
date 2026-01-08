@@ -18,6 +18,56 @@ def _sanitize_addon_key(addon_key: str) -> str:
     return html.escape(addon_key)
 
 
+def _safe_path_join(base_dir: str, *components: str) -> str:
+    """Safely join path components, preventing path traversal attacks.
+
+    Args:
+        base_dir: The base directory that the result must be within
+        *components: Path components to join (from user input)
+
+    Returns:
+        The safe joined path, or empty string if validation fails
+
+    Raises:
+        ValueError: If the resulting path would escape base_dir
+    """
+    # Validate each component doesn't contain path traversal sequences
+    for component in components:
+        if not component:
+            continue
+        # Check for path traversal attempts
+        if '..' in component or component.startswith('/') or component.startswith('\\'):
+            raise ValueError(f"Invalid path component: {component}")
+        # Check for null bytes (can bypass checks in some systems)
+        if '\x00' in component:
+            raise ValueError(f"Invalid path component containing null byte")
+
+    # Join paths
+    full_path = os.path.join(base_dir, *components)
+
+    # Resolve to absolute path and verify it's under base_dir
+    base_resolved = os.path.realpath(base_dir)
+    full_resolved = os.path.realpath(full_path)
+
+    if not full_resolved.startswith(base_resolved + os.sep) and full_resolved != base_resolved:
+        raise ValueError(f"Path traversal detected: {full_path}")
+
+    return full_path
+
+
+def _validate_path_component(component: str) -> bool:
+    """Validate a single path component for safe use.
+
+    Returns True if the component is safe, False otherwise.
+    """
+    if not component:
+        return False
+    # Reject path traversal, absolute paths, and special characters
+    if '..' in component or '/' in component or '\\' in component or '\x00' in component:
+        return False
+    return True
+
+
 from config import settings
 from config.products import PRODUCTS, PRODUCT_LIST
 from scraper.metadata_store import MetadataStore
@@ -123,6 +173,10 @@ def register_routes(app):
     def app_detail(addon_key):
         """Show detailed information about a specific app."""
         try:
+            # Security: Validate addon_key to prevent path traversal
+            if not _validate_path_component(addon_key):
+                return render_template('error.html', error="Invalid addon key"), 400
+
             # Get app
             app = store.get_app_by_key(addon_key)
             if not app:
@@ -138,8 +192,11 @@ def register_routes(app):
                 reverse=True
             )
 
-            # Check if description exists
-            description_dir = os.path.join(settings.DESCRIPTIONS_DIR, addon_key.replace('.', '_'))
+            # Check if description exists (use safe path join)
+            try:
+                description_dir = _safe_path_join(settings.DESCRIPTIONS_DIR, addon_key.replace('.', '_'))
+            except ValueError:
+                return render_template('error.html', error="Invalid addon key"), 400
             description_files = []
             full_page_path = None
             api_overview = None  # Brief description from API
@@ -206,11 +263,11 @@ def register_routes(app):
         """Serve assets for description pages."""
         try:
             # Security: Validate addon_key to prevent path traversal
-            if '..' in addon_key or '/' in addon_key or '\\' in addon_key:
+            if not _validate_path_component(addon_key):
                 return render_template('error.html', error="Invalid addon key"), 400
 
             # Security: Validate asset_path doesn't contain path traversal
-            if '..' in asset_path:
+            if '..' in asset_path or '\x00' in asset_path:
                 logger.warning(f"Path traversal attempt in assets: {asset_path}")
                 return render_template('error.html', error="Invalid path"), 400
 
@@ -219,25 +276,17 @@ def register_routes(app):
             if not any(asset_path.lower().endswith(ext) for ext in allowed_extensions):
                 return render_template('error.html', error="File type not allowed"), 400
 
-            asset_file = os.path.join(
-                settings.DESCRIPTIONS_DIR,
-                addon_key.replace('.', '_'),
-                'full_page',
-                'assets',
-                asset_path
-            )
-
-            # Security: Verify resolved path is within expected directory
-            base_dir = os.path.realpath(os.path.join(
+            # Security: Use safe path join to prevent path traversal
+            base_assets_dir = os.path.join(
                 settings.DESCRIPTIONS_DIR,
                 addon_key.replace('.', '_'),
                 'full_page',
                 'assets'
-            ))
-            real_path = os.path.realpath(asset_file)
-
-            if not real_path.startswith(base_dir):
-                logger.warning(f"Path traversal attempt detected in assets: {asset_path} -> {real_path}")
+            )
+            try:
+                asset_file = _safe_path_join(base_assets_dir, asset_path)
+            except ValueError as e:
+                logger.warning(f"Path traversal attempt in assets: {asset_path} - {e}")
                 return render_template('error.html', error="Access denied"), 403
 
             if os.path.exists(asset_file) and os.path.isfile(asset_file):
@@ -274,14 +323,14 @@ def register_routes(app):
         """Serve local app logo if available."""
         try:
             # Security: Validate addon_key to prevent path traversal
-            if '..' in addon_key or '/' in addon_key or '\\' in addon_key:
+            if not _validate_path_component(addon_key):
                 return render_template('error.html', error="Invalid addon key"), 400
 
-            # Look for logo file in description directory
-            addon_dir = os.path.join(
-                settings.DESCRIPTIONS_DIR,
-                addon_key.replace('.', '_')
-            )
+            # Look for logo file in description directory (use safe path join)
+            try:
+                addon_dir = _safe_path_join(settings.DESCRIPTIONS_DIR, addon_key.replace('.', '_'))
+            except ValueError:
+                return render_template('error.html', error="Invalid addon key"), 400
 
             # Check for logo with various extensions
             mime_types = {
@@ -293,13 +342,12 @@ def register_routes(app):
                 '.svg': 'image/svg+xml'
             }
             for ext, mimetype in mime_types.items():
-                logo_path = os.path.join(addon_dir, f'logo{ext}')
-                if os.path.exists(logo_path) and os.path.isfile(logo_path):
-                    # Security: Verify resolved path is within expected directory
-                    base_dir = os.path.realpath(addon_dir)
-                    real_path = os.path.realpath(logo_path)
-                    if real_path.startswith(base_dir):
+                try:
+                    logo_path = _safe_path_join(addon_dir, f'logo{ext}')
+                    if os.path.exists(logo_path) and os.path.isfile(logo_path):
                         return send_file(logo_path, mimetype=mimetype)
+                except ValueError:
+                    continue
 
             # Logo not found - return 404
             return '', 404
@@ -312,7 +360,7 @@ def register_routes(app):
         """Show downloaded description page."""
         try:
             # Security: Validate addon_key to prevent path traversal
-            if '..' in addon_key or '/' in addon_key or '\\' in addon_key:
+            if not _validate_path_component(addon_key):
                 return render_template('error.html', error="Invalid addon key"), 400
 
             # Security: Sanitize addon_key for HTML output to prevent XSS
@@ -706,9 +754,20 @@ def register_routes(app):
     def download_binary(product, addon_key, version_id):
         """Download a binary file."""
         try:
-            # Find the file using product-specific storage
+            # Security: Validate all path components to prevent path traversal
+            if not _validate_path_component(product) or product not in PRODUCT_LIST:
+                return jsonify({'error': 'Invalid product'}), 400
+            if not _validate_path_component(addon_key):
+                return jsonify({'error': 'Invalid addon key'}), 400
+            if not _validate_path_component(version_id):
+                return jsonify({'error': 'Invalid version ID'}), 400
+
+            # Find the file using product-specific storage (with safe path join)
             product_binaries_dir = settings.get_binaries_dir_for_product(product)
-            binary_dir = os.path.join(product_binaries_dir, addon_key, version_id)
+            try:
+                binary_dir = _safe_path_join(product_binaries_dir, addon_key, version_id)
+            except ValueError:
+                return jsonify({'error': 'Invalid path'}), 400
 
             if not os.path.exists(binary_dir):
                 return jsonify({'error': 'Binary not found'}), 404
@@ -725,7 +784,8 @@ def register_routes(app):
             if not binary_file:
                 return jsonify({'error': 'Binary file not found in directory'}), 404
 
-            file_path = os.path.join(binary_dir, binary_file)
+            # Safe path join for final file path
+            file_path = _safe_path_join(binary_dir, binary_file)
 
             return send_file(
                 file_path,
