@@ -199,8 +199,8 @@ class EnhancedSearch:
                             try:
                                 html_text = extract_text_from_html_file(html_file)
                                 break
-                            except Exception:
-                                pass
+                            except (OSError, UnicodeDecodeError):
+                                pass  # HTML file unreadable, try next
                 
                 # Combine texts
                 combined_text = (json_text + ' ' + html_text).lower()

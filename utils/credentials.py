@@ -263,8 +263,8 @@ def save_credentials(username: str, api_token: str) -> bool:
             try:
                 # Get decrypted existing accounts
                 existing_accounts = get_all_credentials()
-            except:
-                pass
+            except (OSError, ValueError, KeyError):
+                pass  # Credentials file corrupted or unreadable, will create new
 
         # Check if account already exists
         account_exists = False
@@ -391,7 +391,7 @@ class CredentialsRotator:
             if not self._accounts:
                 return None
 
-            return random.choice(self._accounts).copy()
+            return random.choice(self._accounts).copy()  # nosec B311 - load balancing, not crypto
 
     def get_all(self) -> List[Dict[str, str]]:
         """

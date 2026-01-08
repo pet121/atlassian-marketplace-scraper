@@ -62,7 +62,7 @@ def check_requirements():
             
             try:
                 # Install missing packages
-                result = subprocess.run(
+                result = subprocess.run(  # nosec B603 - hardcoded pip install
                     [sys.executable, '-m', 'pip', 'install'] + missing_packages,
                     capture_output=True,
                     text=True,
@@ -228,7 +228,7 @@ if __name__ == '__main__':
         print("\n⚠️  Press CTRL+C to stop the server\n")
 
         app.run(
-            host='0.0.0.0',
+            host='0.0.0.0',  # nosec B104 - intentional for Docker/network access
             port=settings.FLASK_PORT,
             debug=settings.FLASK_DEBUG,
             use_reloader=False  # Disable reloader to avoid issues

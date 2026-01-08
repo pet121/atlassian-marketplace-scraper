@@ -12,9 +12,8 @@ if sys.platform == 'win32':
             sys.stdout.reconfigure(encoding='utf-8', errors='replace')
         if hasattr(sys.stderr, 'reconfigure'):
             sys.stderr.reconfigure(encoding='utf-8', errors='replace')
-    except Exception:
-        # Fallback: use ASCII-safe output
-        pass
+    except (AttributeError, OSError):
+        pass  # Encoding reconfiguration not supported on this platform
 
 # Add project root to path
 project_root = Path(__file__).parent

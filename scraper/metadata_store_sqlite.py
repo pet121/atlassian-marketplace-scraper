@@ -288,7 +288,7 @@ class MetadataStoreSQLite:
             {where_sql}
             ORDER BY name
             {limit_sql}
-        """
+        """  # nosec B608 - where_sql/limit_sql built from internal logic, user input uses parameterized queries
 
         try:
             cursor = conn.execute(sql, params)
@@ -540,7 +540,7 @@ class MetadataStoreSQLite:
 
         where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
-        sql = f"SELECT COUNT(*) FROM apps {where_sql}"
+        sql = f"SELECT COUNT(*) FROM apps {where_sql}"  # nosec B608
 
         try:
             cursor = conn.execute(sql, params)

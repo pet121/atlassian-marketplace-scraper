@@ -661,8 +661,8 @@ def register_routes(app):
                                         with open(json_path, 'r', encoding='utf-8') as f:
                                             json_data = json.load(f)
                                             documentation_url = json_data.get('documentation_url') or json_data.get('addon', {}).get('vendorLinks', {}).get('Documentation')
-                                    except Exception:
-                                        pass
+                                    except (OSError, json.JSONDecodeError, KeyError):
+                                        pass  # JSON file unreadable or malformed
                                 
                                 apps_with_descriptions.append({
                                     'app': app,
@@ -1455,8 +1455,8 @@ def register_routes(app):
                                 'size': stat.st_size,
                                 'modified': stat.st_mtime
                             })
-                        except Exception:
-                            pass
+                        except OSError:
+                            pass  # File may have been deleted or is inaccessible
             
             # Sort by modified time (newest first)
             log_files.sort(key=lambda x: x['modified'], reverse=True)

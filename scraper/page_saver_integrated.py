@@ -1022,8 +1022,8 @@ class _Saver:
         new_text = _rewrite_css_urls(text, repl_map)
         try:
             local_path.write_text(new_text, encoding="utf-8")
-        except Exception:
-            pass
+        except (OSError, IOError) as e:
+            logger.debug(f"Failed to write CSS file {local_path}: {e}")
 
     def _get_html_with_playwright(self, url: str, wait_seconds: int = 8, timeout: int = 90) -> Tuple[str, str]:
         """Gets page HTML after JavaScript execution via Playwright."""
@@ -1084,9 +1084,8 @@ class _Saver:
                     page.wait_for_selector('body', timeout=5000)
                     # Additional wait for dynamic content
                     page.wait_for_timeout(5000)
-                except Exception:
-                    # If wait failed, continue
-                    pass
+                except PlaywrightTimeout:
+                    pass  # Timeout waiting for body is acceptable, page may still have content
 
                 html = page.content()
                 final_url = page.url

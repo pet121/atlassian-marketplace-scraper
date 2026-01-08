@@ -1513,7 +1513,7 @@ class DescriptionDownloader:
             Exception: If page save fails
         """
         try:
-            from playwright.sync_api import sync_playwright
+            from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
         except ImportError:
             raise ImportError(
                 "playwright is required for this method. Install it with: pip install playwright && playwright install chromium"
@@ -1613,8 +1613,8 @@ class DescriptionDownloader:
                         logger.debug(f"Content selector found: {selector}")
                         content_loaded = True
                         break
-                    except Exception:
-                        continue
+                    except PlaywrightTimeout:
+                        continue  # Selector not found, try next
                 
                 if not content_loaded:
                     logger.warning("No content selectors found, but proceeding anyway")

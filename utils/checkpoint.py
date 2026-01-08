@@ -37,7 +37,7 @@ def load_checkpoint(checkpoint_file=None):
 
     if os.path.exists(checkpoint_file):
         with open(checkpoint_file, 'rb') as f:
-            return pickle.load(f)
+            return pickle.load(f)  # nosec B301 - locally generated files only
 
     return None
 

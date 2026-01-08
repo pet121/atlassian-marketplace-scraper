@@ -111,7 +111,7 @@ def validate_security_settings():
     warnings = []
 
     # Check SECRET_KEY
-    if SECRET_KEY == 'dev-secret-key-change-in-production':
+    if SECRET_KEY == 'dev-secret-key-change-in-production':  # nosec B105 - validation check
         errors.append("SECRET_KEY must be changed from default value. Generate a secure key with: python -c \"import secrets; print(secrets.token_hex(32))\"")
     elif len(SECRET_KEY) < 32:
         warnings.append("SECRET_KEY should be at least 32 characters for security")

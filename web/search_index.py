@@ -151,14 +151,14 @@ class SearchIndex:
                     try:
                         stat = file_path.stat()
                         file_hashes.append(f"{file_path}:{stat.st_mtime}:{stat.st_size}")
-                    except:
-                        pass
+                    except OSError:
+                        pass  # File inaccessible
                 for file_path in sorted(item.rglob('*.html')):
                     try:
                         stat = file_path.stat()
                         file_hashes.append(f"{file_path}:{stat.st_mtime}:{stat.st_size}")
-                    except:
-                        pass
+                    except OSError:
+                        pass  # File inaccessible
         
         hash_str = '|'.join(file_hashes)
         return hashlib.md5(hash_str.encode('utf-8'), usedforsecurity=False).hexdigest()

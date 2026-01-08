@@ -130,7 +130,7 @@ class TaskManager:
                 
                 # Run process
                 # Use UTF-8 encoding explicitly to avoid Windows charmap codec errors
-                process = subprocess.Popen(
+                process = subprocess.Popen(  # nosec B603 - cmd from internal TASK_TYPES
                     cmd,
                     cwd=base_dir,
                     stdout=subprocess.PIPE,

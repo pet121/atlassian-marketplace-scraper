@@ -87,9 +87,8 @@ class WhooshSearchIndex:
                     sys.stdout.reconfigure(encoding='utf-8', errors='replace')
                 if hasattr(sys.stderr, 'reconfigure'):
                     sys.stderr.reconfigure(encoding='utf-8', errors='replace')
-            except Exception:
-                # Fallback: use ASCII-safe output
-                pass
+            except (AttributeError, OSError):
+                pass  # Encoding reconfiguration not supported on this platform
         
         logger.info("Building Whoosh search index...")
         print("Building Whoosh search index...")
@@ -331,9 +330,9 @@ class WhooshSearchIndex:
                             highlights = hit.highlights('all_text', top=1)
                             if highlights:
                                 match_context = highlights
-                        except Exception:
-                            pass
-                        
+                        except (KeyError, ValueError):
+                            pass  # Field not available for highlighting
+
                         if not match_context:
                             # Try highlights from other fields
                             for field in ['json_text', 'html_text', 'release_notes_text']:
@@ -342,8 +341,8 @@ class WhooshSearchIndex:
                                     if highlights:
                                         match_context = highlights
                                         break
-                                except Exception:
-                                    pass
+                                except (KeyError, ValueError):
+                                    pass  # Field not available for highlighting
                         
                         # Fallback to text snippets
                         if not match_context:
