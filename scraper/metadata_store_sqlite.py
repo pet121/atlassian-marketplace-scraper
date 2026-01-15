@@ -374,18 +374,28 @@ class MetadataStoreSQLite:
 
             conn.execute("BEGIN TRANSACTION")
 
-            # Delete existing versions for this app (to avoid v2/v3 API duplicates)
-            conn.execute("DELETE FROM versions WHERE addon_key = ?", (addon_key,))
-
-            # Insert versions
+            # Insert or update versions (preserves old versions and download status)
             for version in versions:
                 conn.execute("""
-                    INSERT OR REPLACE INTO versions (
+                    INSERT INTO versions (
                         app_id, addon_key, version_id, version_name, build_number,
                         release_date, release_notes, summary, compatible_products,
                         compatibility, hosting_type, download_url, file_name, file_size,
                         file_path, downloaded, download_date, updated_at
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                    ON CONFLICT(addon_key, version_id) DO UPDATE SET
+                        version_name = excluded.version_name,
+                        build_number = excluded.build_number,
+                        release_date = excluded.release_date,
+                        release_notes = excluded.release_notes,
+                        summary = excluded.summary,
+                        compatible_products = excluded.compatible_products,
+                        compatibility = excluded.compatibility,
+                        hosting_type = excluded.hosting_type,
+                        download_url = excluded.download_url,
+                        file_name = excluded.file_name,
+                        file_size = excluded.file_size,
+                        updated_at = datetime('now')
                 """, (
                     app_id,
                     addon_key,
@@ -406,12 +416,14 @@ class MetadataStoreSQLite:
                     version.download_date
                 ))
 
-            # Update app's total_versions count
+            # Update app's total_versions count (count all versions in DB)
             conn.execute("""
                 UPDATE apps
-                SET total_versions = ?, updated_at = datetime('now')
+                SET total_versions = (
+                    SELECT COUNT(*) FROM versions WHERE addon_key = ?
+                ), updated_at = datetime('now')
                 WHERE addon_key = ?
-            """, (len(versions), addon_key))
+            """, (addon_key, addon_key))
 
             conn.commit()
             self.logger.debug(f"Saved {len(versions)} versions for {addon_key}")

@@ -199,22 +199,37 @@ class MetadataStoreJSON:
 
     def save_versions(self, addon_key: str, versions: List[Version]):
         """
-        Save versions for an app.
+        Save versions for an app (merges with existing versions).
 
         Args:
             addon_key: The app's unique key
             versions: List of Version instances
         """
         file_path = os.path.join(self.versions_dir, f"{addon_key}_versions.json")
-        versions_data = [v.to_dict() for v in versions]
 
-        self._write_json(file_path, versions_data)
-        logger.debug(f"Saved {len(versions)} versions for {addon_key}")
+        # Load existing versions and merge (preserves old versions and download status)
+        existing_versions = self._read_json(file_path) or []
+        existing_by_id = {v.get('version_id'): v for v in existing_versions}
 
-        # Update app's total_versions count
+        # Update/add new versions (preserve download status from existing)
+        for version in versions:
+            new_data = version.to_dict()
+            existing = existing_by_id.get(version.version_id)
+            if existing and existing.get('downloaded'):
+                # Preserve download status from existing version
+                new_data['downloaded'] = existing['downloaded']
+                new_data['download_date'] = existing.get('download_date')
+                new_data['file_path'] = existing.get('file_path')
+            existing_by_id[version.version_id] = new_data
+
+        merged_versions = list(existing_by_id.values())
+        self._write_json(file_path, merged_versions)
+        logger.debug(f"Saved {len(versions)} new/updated versions for {addon_key} (total: {len(merged_versions)})")
+
+        # Update app's total_versions count with actual count
         app = self.get_app_by_key(addon_key)
         if app:
-            app['total_versions'] = len(versions)
+            app['total_versions'] = len(merged_versions)
             self.save_app(App.from_dict(app))
 
     def get_app_versions(self, addon_key: str) -> List[Dict]:
