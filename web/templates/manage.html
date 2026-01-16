@@ -1334,12 +1334,12 @@ function renderTasksTable(container, tasks, loadLogs = false) {
         html += `<tr>
             <td><code>${taskId.substring(0, 20)}...</code></td>
             <td>${task.script || 'N/A'}</td>
-            <td><span class="badge ${statusBadge}">${task.status || 'unknown'}</span></td>
-            <td><small class="text-muted" style="font-family: monospace; font-size: 0.85em; white-space: normal; word-wrap: break-word;" title="${escapeHtml(currentAction)}">${escapeHtml(currentAction)}</small></td>
             <td>
                 // Code to Display Product Here
                 Will Display Product
             </td>
+            <td><span class="badge ${statusBadge}">${task.status || 'unknown'}</span></td>
+            <td><small class="text-muted" style="font-family: monospace; font-size: 0.85em; white-space: normal; word-wrap: break-word;" title="${escapeHtml(currentAction)}">${escapeHtml(currentAction)}</small></td>
             <td>
                 <div class="progress" style="height: 20px; width: 100px;">
                     <div class="progress-bar ${task.status === 'running' ? 'progress-bar-striped progress-bar-animated' : ''}" 
