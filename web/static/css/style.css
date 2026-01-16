@@ -264,3 +264,28 @@ main {
 .table-sortable th.sortable:hover i {
     opacity: 1;
 }
+
+/* Плавная анимация для сворачивания */
+.collapse {
+    transition: height 0.3s ease;
+}
+
+/* Поворот иконки при сворачивании */
+[data-bs-toggle="collapse"] .bi-chevron-down {
+    transition: transform 0.3s ease;
+}
+
+[data-bs-toggle="collapse"][aria-expanded="true"] .bi-chevron-down {
+    transform: rotate(180deg);
+}
+
+/* Стиль для кнопки сворачивания */
+.card-header .btn-link {
+    text-decoration: none;
+    padding: 0;
+    font-size: 1.2rem;
+}
+
+.card-header .btn-link:hover {
+    opacity: 0.8;
+}

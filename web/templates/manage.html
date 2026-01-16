@@ -7,16 +7,30 @@
     <div class="col-12">
         <h2><i class="bi bi-gear"></i> Management & Control</h2>
         <p class="text-muted">Manage scraper tasks and settings</p>
+        <div class="mb-3">
+            <button class="btn btn-sm btn-outline-secondary" onclick="toggleAllSections(true)">
+                <i class="bi bi-arrows-expand"></i> Развернуть все
+            </button>
+            <button class="btn btn-sm btn-outline-secondary" onclick="toggleAllSections(false)">
+                <i class="bi bi-arrows-collapse"></i> Свернуть все
+            </button>
+        </div>
     </div>
 </div>
+
 
 <!-- Task Control Section -->
 <div class="row mt-4">
     <div class="col-12">
         <div class="card">
-            <div class="card-header bg-primary text-white">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                 <h5 class="mb-0"><i class="bi bi-play-circle"></i> Task Control</h5>
+                <button class="btn btn-sm btn-link text-white" type="button" 
+                        data-bs-toggle="collapse" data-bs-target="#collapseTaskControl">
+                    <i class="bi bi-chevron-down"></i>
+                </button>
             </div>
+            <div id="collapseTaskControl" class="collapse show">
             <div class="card-body">
                 <!-- Full Pipeline -->
                 <div class="mb-4 p-4 border rounded bg-light">
@@ -155,6 +169,7 @@
                     <div id="status-build-index" class="mt-2"></div>
                 </div>
             </div>
+            </div>
         </div>
     </div>
 </div>
@@ -163,9 +178,14 @@
 <div class="row mt-4">
     <div class="col-12">
         <div class="card">
-            <div class="card-header bg-info text-white">
+            <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
                 <h5 class="mb-0"><i class="bi bi-folder"></i> Storage Paths</h5>
+                <button class="btn btn-sm btn-link text-white" type="button" 
+                    data-bs-toggle="collapse" data-bs-target="#collapseTaskControl">
+                        <i class="bi bi-chevron-down"></i>
+                </button>
             </div>
+            <div id="collapseStoragePaths" class="collapse show">
             <div class="card-body">
                 <div class="alert alert-info">
                     <i class="bi bi-info-circle"></i> 
@@ -274,7 +294,7 @@
                     </div>
                     <div id="storage-paths-message" class="mt-2"></div>
                 </form>
-            </div>
+            </div></div>
         </div>
     </div>
 </div>
@@ -285,8 +305,13 @@
         <div class="card">
             <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
                 <h5 class="mb-0"><i class="bi bi-key"></i> Marketplace API Credentials</h5>
+                <button class="btn btn-sm btn-link text-white" type="button" 
+                        data-bs-toggle="collapse" data-bs-target="#collapseTaskControl">
+                        <i class="bi bi-chevron-down"></i>
+                </button>
                 <span id="credentials-count-badge" class="badge bg-dark">Loading...</span>
             </div>
+            <div id="collapseCredentials" class="collapse show">
             <div class="card-body">
                 <div class="alert alert-info">
                     <i class="bi bi-info-circle"></i> 
@@ -335,7 +360,7 @@
                         </form>
                     </div>
                 </div>
-            </div>
+            </div></div>
         </div>
     </div>
 </div>
@@ -344,9 +369,14 @@
 <div class="row mt-4">
     <div class="col-12">
         <div class="card">
-            <div class="card-header bg-secondary text-white">
+            <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
                 <h5 class="mb-0"><i class="bi bi-sliders"></i> Settings</h5>
+                <button class="btn btn-sm btn-link text-white" type="button" 
+                    data-bs-toggle="collapse" data-bs-target="#collapseTaskControl">
+                        <i class="bi bi-chevron-down"></i>
+                </button>
             </div>
+            <div id="collapseSettings" class="collapse show">
             <div class="card-body">
                 <div class="alert alert-info">
                     <i class="bi bi-info-circle"></i> 
@@ -413,7 +443,7 @@
                     </div>
                     <div id="settings-message" class="mt-2"></div>
                 </form>
-            </div>
+            </div></div>
         </div>
     </div>
 </div>
@@ -425,6 +455,7 @@
             <div class="card-header bg-dark text-white">
                 <h5 class="mb-0"><i class="bi bi-clock-history"></i> Task Status</h5>
             </div>
+            <div id="collapseTaskHistory" class="collapse show">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <div>
@@ -495,7 +526,7 @@
                         </div>
                     </div>
                 </div>
-            </div>
+            </div></div>
         </div>
     </div>
 </div>
@@ -504,9 +535,14 @@
 <div class="row mt-4">
     <div class="col-12">
         <div class="card">
-            <div class="card-header bg-info text-white">
+            <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
                 <h5 class="mb-0"><i class="bi bi-file-text"></i> View Logs</h5>
+                <button class="btn btn-sm btn-link text-white" type="button" 
+                    data-bs-toggle="collapse" data-bs-target="#collapseTaskControl">
+                        <i class="bi bi-chevron-down"></i>
+                </button>
             </div>
+            <div id="collapseLogs" class="collapse show">
             <div class="card-body">
                 <div class="mb-3">
                     <label for="log-file-select" class="form-label">Select Log File:</label>
@@ -530,7 +566,7 @@
                     </div>
                     <pre id="log-content" class="bg-dark text-light p-3 rounded" style="max-height: 500px; overflow-y: auto; font-size: 0.85rem;"></pre>
                 </div>
-            </div>
+            </div></div>
         </div>
     </div>
 </div>
@@ -1629,6 +1665,15 @@ document.addEventListener('visibilitychange', function() {
         refreshInterval = setInterval(refreshTaskStatus, 5000);
     }
 });
+
+// Collapse All function
+function toggleAllSections(show) {
+    document.querySelectorAll('.collapse').forEach(function(el) {
+        const bsCollapse = bootstrap.Collapse.getOrCreateInstance(el);
+        show ? bsCollapse.show() : bsCollapse.hide();
+    });
+}
+
 </script>
 {% endblock %}
 

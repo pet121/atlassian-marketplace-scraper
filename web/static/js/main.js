@@ -245,3 +245,29 @@ document.addEventListener('DOMContentLoaded', function() {
         subtree: true
     });
 });
+
+// Сохранение состояния сворачивания в localStorage
+document.addEventListener('DOMContentLoaded', function() {
+    // Восстановление состояния при загрузке
+    document.querySelectorAll('[data-bs-toggle="collapse"]').forEach(function(btn) {
+        const target = btn.getAttribute('data-bs-target');
+        const collapseEl = document.querySelector(target);
+        const savedState = localStorage.getItem('collapse_' + target);
+        
+        if (savedState === 'hidden') {
+            const bsCollapse = new bootstrap.Collapse(collapseEl, {toggle: false});
+            bsCollapse.hide();
+        }
+    });
+    
+    // Сохранение состояния при изменении
+    document.querySelectorAll('.collapse').forEach(function(collapseEl) {
+        collapseEl.addEventListener('hidden.bs.collapse', function() {
+            localStorage.setItem('collapse_#' + this.id, 'hidden');
+        });
+        
+        collapseEl.addEventListener('shown.bs.collapse', function() {
+            localStorage.setItem('collapse_#' + this.id, 'shown');
+        });
+    });
+});
