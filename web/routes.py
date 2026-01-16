@@ -1197,6 +1197,7 @@ def register_routes(app):
                         'progress': task.get('progress'),
                         'message': task.get('message'),
                         'current_action': task.get('current_action'),
+                        'product': task.get('product'),
                         'pid': task.get('pid'),
                         'return_code': task.get('return_code'),
                         'error': task.get('error'),
