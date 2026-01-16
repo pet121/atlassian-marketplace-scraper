@@ -1320,7 +1320,7 @@ function renderTasksTable(container, tasks, loadLogs = false) {
     }
     
     let html = '<div class="table-responsive"><table class="table table-hover table-sm table-resizable" style="table-layout: fixed; width: 100%; min-width: 1100px;">';
-    html += '<thead><tr><th style="min-width: 180px; width: 18%;">Task ID</th><th style="min-width: 140px; width: 14%;">Script</th><th style="min-width: 90px; width: 9%;">Status</th><th style="min-width: 350px; width: 40%;">Current Action</th><th style="min-width: 110px; width: 11%;">Progress</th><th style="min-width: 140px; width: 14%;">Started</th><th style="min-width: 90px; width: 9%;">Actions</th></tr></thead><tbody>';
+    html += '<thead><tr><th style="min-width: 180px; width: 18%;">Task ID</th><th style="min-width: 140px; width: 14%;">Script</th><th style="min-width: 90px; width: 9%;">Product</th><th style="min-width: 90px; width: 9%;">Status</th><th style="min-width: 350px; width: 37%;">Current Action</th><th style="min-width: 110px; width: 11%;">Progress</th><th style="min-width: 140px; width: 11%;">Started</th><th style="min-width: 90px; width: 6%;">Actions</th></tr></thead><tbody>';
 
     tasks.forEach(([taskId, task]) => {
         const statusBadge = task.status === 'completed' ? 'bg-success' :
@@ -1336,6 +1336,10 @@ function renderTasksTable(container, tasks, loadLogs = false) {
             <td>${task.script || 'N/A'}</td>
             <td><span class="badge ${statusBadge}">${task.status || 'unknown'}</span></td>
             <td><small class="text-muted" style="font-family: monospace; font-size: 0.85em; white-space: normal; word-wrap: break-word;" title="${escapeHtml(currentAction)}">${escapeHtml(currentAction)}</small></td>
+            <td>
+                // Code to Display Product Here
+                Will Display Product
+            </td>
             <td>
                 <div class="progress" style="height: 20px; width: 100px;">
                     <div class="progress-bar ${task.status === 'running' ? 'progress-bar-striped progress-bar-animated' : ''}" 
