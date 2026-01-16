@@ -96,8 +96,8 @@ class TaskManager:
                     'current_action': 'Initializing...'
                 }
                 if metadata:
-                self.tasks[task_id].update(metadata)
-                
+                    self.tasks[task_id].update(metadata)
+
                 self._save_status()
 
             try:
