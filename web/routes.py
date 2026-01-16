@@ -1099,9 +1099,7 @@ def register_routes(app):
             product = data.get('product')
 
             task_manager = get_task_manager()
-            task_id = task_manager.start_download_binaries(
-                product=product if product != 'all' else None
-                )
+            task_id = task_manager.start_download_binaries(product=product)
             
             return jsonify({
                 'success': True,
