@@ -1334,9 +1334,7 @@ function renderTasksTable(container, tasks, loadLogs = false) {
         html += `<tr>
             <td><code>${taskId.substring(0, 20)}...</code></td>
             <td>${task.script || 'N/A'}</td>
-            <td>
-                <!-- Code to Display Product Here -->
-                Will Display Product
+            <td>${task.product ? '<span class="badge bg-secondary">' + escapeHtml(task.product) + '</span>' : '<span class="text-muted">-</span>'}
             </td>
             <td><span class="badge ${statusBadge}">${task.status || 'unknown'}</span></td>
             <td><small class="text-muted" style="font-family: monospace; font-size: 0.85em; white-space: normal; word-wrap: break-word;" title="${escapeHtml(currentAction)}">${escapeHtml(currentAction)}</small></td>

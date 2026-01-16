@@ -74,7 +74,7 @@ class TaskManager:
         except Exception as e:
             logger.error(f"Error saving task status: {str(e)}")
     
-    def _run_task(self, task_id: str, script_name: str, args: list = None):
+    def _run_task(self, task_id: str, script_name: str, args: list = None, metadata: dict = None):
         """Run a task in background thread."""
         # Security: Whitelist of allowed scripts
         ALLOWED_SCRIPTS = {
@@ -95,6 +95,9 @@ class TaskManager:
                     'message': 'Starting...',
                     'current_action': 'Initializing...'
                 }
+                if metadata:
+                self.tasks[task_id].update(metadata)
+                
                 self._save_status()
 
             try:
@@ -346,7 +349,9 @@ class TaskManager:
         """Start binary download task."""
         task_id = f"download_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         args = [product] if product else []
-        self._run_task(task_id, 'run_downloader.py', args)
+        # НОВОЕ: передаем метаданные с product
+        metadata = {'product': product if product else 'All Products'}
+        self._run_task(task_id, 'run_downloader.py', args, metadata=metadata)
         return task_id
 
     def start_download_descriptions(self, addon_key: Optional[str] = None, download_media: bool = True) -> str:

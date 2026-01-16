@@ -1097,9 +1097,15 @@ def register_routes(app):
         try:
             data = request.get_json() or {}
             product = data.get('product')
-            
-            task_mgr = get_task_manager()
-            task_id = task_mgr.start_download_binaries(product=product)
+            # Валидация product
+            from config.products import PRODUCT_LIST
+                if product and product != 'all' and product not in PRODUCT_LIST:
+                return jsonify({'success': False, 'error': 'Invalid product'}), 400
+
+                task_mgr = get_task_manager()
+                task_id = task_manager.start_download_binaries(
+                            product=product if product != 'all' else None
+                        )
             
             return jsonify({
                 'success': True,
