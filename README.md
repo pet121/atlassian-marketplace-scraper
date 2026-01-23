@@ -118,6 +118,7 @@ The launcher script will automatically:
 
 4. **Install Playwright browsers:**
    ```bash
+   playwright install-deps
    playwright install chromium
    ```
 
